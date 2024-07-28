@@ -42,7 +42,8 @@
     (letrec ((return (lambda (msg)
 		       (case msg
 			 [(sdl-init)
-			  (sdl-library-init "SDL2.dll")
+			  (sdl-library-init ;; "SDL2.dll"
+					    )
 			  (sdl-set-main-ready!)
 			  (printf "sdl初始化结果:~d~n" (sdl-init SDL-INIT-EVERYTHING)) 	;-1 是有问题
 			  (set! 系统初始化标志 #b00001)
@@ -132,7 +133,6 @@
 		  (sdl-set-main-ready!)
 		  (printf "sdl初始化结果:~d~n" (sdl-init SDL-INIT-EVERYTHING))))) 	;-1 是有问题)
 
-
 (define (mg-init manager)
   ;; 应该加个sicp 按类型分派,这样一个init过程就可以应用于各种类型的参数而不用手写了
   (manager 'sdl-init))
@@ -175,6 +175,41 @@
 (define (win-render-get win)
   (win 'get-win-render))
 
+(define sdl:window
+  (make-property 'window
+		 'predicate (lambda (p) (ftype-pointer? SDL_Window p))))
+
+(define sdl:surface		;property
+  (make-property 'surface
+                 'predicate (lambda (p) (ftype-pointer? SDL_Surface p))))
+
+(define sdl:renderer
+  (make-property 'renderer
+                 'predicate (lambda (p) (ftype-pointer? SDL_Renderer p))))
+
+
+(define-type 窗口对象 () (sdl:window ;; sdl:surface
+				   sdl:renderer))
+
+(define (创建窗口 titlestr x y w h)
+  (let ((win (sdl-create-window titlestr x y w h))
+	(winrender (sdl-create-renderer win -1
+					SDL-RENDERER-ACCELERATED	;硬件加速,使用GPU
+					SDL-RENDERER-PRESENT-VSYNC)))
+    (make-坐标对象 'window (sdl-create-window titlestr x y w h)
+		   'renderer winrender)))
+
+(定义匹配度优先广义过程 get-窗口 1 '默认窗口)
+(定义匹配度优先广义过程 get-表面 1 '默认表面)
+(定义匹配度优先广义过程 get-渲染器 1 '默认渲染器)
+(广义过程扩展 get-窗口 ((窗口对象? obj))
+	      (get-window obj))
+(广义过程扩展 get-表面 ((窗口对象? obj))
+	      (sdl-get-window-surface (get-window obj)))
+(广义过程扩展 get-渲染器 ((窗口对象? obj))
+	      (get-renderer obj))
+
+
 ;;; 事件闭包
 ;;; 由于需要调用 类型的值,所以这部分直接写成库文件的一部分  -- 230117
 ;;; 见 chez-sdl sdl-extend.sls
@@ -205,6 +240,84 @@
        res)))
   )
 
+(define (游戏循环 每帧时长)
+  ;; 为了避免出现1的那个版本,每套局部都要对各个事件对应的hash-table进行赋值的情况;
+  ;; 同时为了避免closure中每增添一个事件就要修改源代码的情况
+  ;; 意识到了事件和状态的本质都是谓词之后,通过给事件循环的构造器返回一个传入函数,将传入的函数应用到事件类型上得到了现在的2.0  -- 2023年2月15日21:03:31
+  ;; 因为图形拖动遇到了问题,意识到了原作者的一堆事件谓词之后,不需要自己手工访问 SDL_Event,有了现在的3.0--- 2023年2月16日20:11:20
+  ;; 由于昨天的进步,不需要放进库文件了... -- 2023年2月17日17:25:40
+  ;; 固定更新时间步长,动态渲染?游戏设计模式一书提到的方式  2024年7月28日16:09:10
+  (let ((上一时间戳 (sdl-get-ticks))
+	(时间间隔 0))
+    (let loop ((时间戳 (sdl-get-ticks)))
+      (set! 时间间隔 (- 时间戳 上一时间戳))
+      (set! 上一时间戳 时间戳)
+      (set! 累积时间间隔 (+ 累积时间间隔 时间间隔))		;会在game-eval中减去每帧时长然后赋值给自己...
+      (sdl-poll-event)
+      (if (sdl-event-quit?)
+	  (printf "游戏循环结束!~n")
+	  (begin
+	    (game-read )
+	    (game-eval 累积时间间隔 每帧时长)
+	    (game-print )
+	    (loop (sdl-get-ticks))
+	    ))
+      ))
+    )
+
+;;; 游戏闭包
+(define (game-mk 每帧时长 标题str 窗口x 窗口y 窗口宽 窗口高)
+  ;; 这里应该更灵活些,随着功能加入,将(提示字段 选项 foo)对应加入 -- 221210
+  ;; 其实应该可以和事件循环合并,做一个根据输入内容 对应运行不同代码 的版本 --221211
+  ;; 因为 事件接受的过程需要引用内部状态变量,所以之前的run风格行不通了,如下两个方案:
+  ;; 1.cmd case read 根据读入,set!默认-mk,保留空悬的参数,确保接口一致(次日又重新发现了一遍)
+  ;; 2.直接利用event-type做分配 -- 221213
+  ;; 3.把game也闭包化,留一个访问默认过程的接口,可以set!,可以run,可以quit,这样就可以实现 1 了 --221214
+  (let ((manager (manager-mk)))
+    ;; 这一堆init应该单独分开,
+    (mg-init manager)
+    (mg-img-init manager IMG_INIT_EVERYTHING)
+    (mg-ttf-init manager)
+    (mg-mix-init manager (bitwise-ior MIX_INIT_FLAC MIX_INIT_MP3 MIX_INIT_OGG))
+    (mg-net-init manager)
+    (let* ((win (创建窗口 标题str 窗口x 窗口y 窗口宽 窗口高)))
+      (lambda (msg)
+	(case msg
+	  [(run)
+	   (lambda (foo)
+	     ;; 事件循环返回一个接受过程参数的过程 -- 2023年2月17日16:46:0
+	     ((事件循环 每帧时长) foo))]
+	  [(game-win-get) win]
+	  [(quit)
+	   (collect)
+	   (sdl-free-garbage)
+	   (mg-quit-sdl manager)]
+	  [else
+	   '不是游戏构造支持的过程]))
+      )))
+
+(define (run-game game foo)
+  ((game 'run) foo))
+
+(define (game-win-get game)
+  (game 'game-win-get))
+
+(define (game-window-get game)
+  (win-get (game-win-get game)))
+
+(define (game-render-get game)
+  (win-render-get (game-win-get game)))
+
+(define (game-surface-get game)
+  (win-surface-get (game-win-get game)))
+
+(define (game无事件时的过程-set! game 无事件时过程)
+  ((game 'game默认过程-set!) 无事件时过程))
+
+(define (game-quit game)
+  (game 'quit))
+
+;;; 计时器
 (define gobj:暂停标记
   (make-property '暂停标记
                  'predicate boolean?
@@ -273,57 +386,7 @@
 		     0))
 	      )
 
-;;; 游戏闭包
-(define (game-mk 每帧时长 标题str 窗口x 窗口y 窗口宽 窗口高)
-  ;; 这里应该更灵活些,随着功能加入,将(提示字段 选项 foo)对应加入 -- 221210
-  ;; 其实应该可以和事件循环合并,做一个根据输入内容 对应运行不同代码 的版本 --221211
-  ;; 因为 事件接受的过程需要引用内部状态变量,所以之前的run风格行不通了,如下两个方案:
-  ;; 1.cmd case read 根据读入,set!默认-mk,保留空悬的参数,确保接口一致(次日又重新发现了一遍)
-  ;; 2.直接利用event-type做分配 -- 221213
-  ;; 3.把game也闭包化,留一个访问默认过程的接口,可以set!,可以run,可以quit,这样就可以实现 1 了 --221214
-  (let ((manager (manager-mk)))
-    ;; 这一堆init应该单独分开,
-    (mg-init manager)
-    (mg-img-init manager IMG_INIT_EVERYTHING)
-    (mg-ttf-init manager)
-    (mg-mix-init manager (bitwise-ior MIX_INIT_FLAC MIX_INIT_MP3 MIX_INIT_OGG))
-    (mg-net-init manager)
-    (let* ((win (win-mk 标题str 窗口x 窗口y 窗口宽 窗口高)))
-      (lambda (msg)
-	(case msg
-	  [(run)
-	   (lambda (foo)
-	     ;; 事件循环返回一个接受过程参数的过程 -- 2023年2月17日16:46:0
-	     ((事件循环 每帧时长) foo))]
-	  [(game-win-get) win]
-	  [(quit)
-	   (collect)
-	   (sdl-free-garbage)
-	   (mg-quit-sdl manager)]
-	  [else
-	   '不是游戏构造支持的过程]))
-      )))
 
-(define (run-game game foo)
-  ((game 'run) foo))
-
-(define (game-win-get game)
-  (game 'game-win-get))
-
-(define (game-window-get game)
-  (win-get (game-win-get game)))
-
-(define (game-render-get game)
-  (win-render-get (game-win-get game)))
-
-(define (game-surface-get game)
-  (win-surface-get (game-win-get game)))
-
-(define (game无事件时的过程-set! game 无事件时过程)
-  ((game 'game默认过程-set!) 无事件时过程))
-
-(define (game-quit game)
-  (game 'quit))
 
 ;;;
 (define (sdl-map foo ls)
