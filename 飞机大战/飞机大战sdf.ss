@@ -93,16 +93,34 @@
 (define 得分榜提示坐标y初始值 800)
 
 ;;; 脚本 script
-
 (define (run)
-  (let ((game (game-mk (/ 1000 帧率) wintitle SDL-WINDOWPOS-UNDEFINED SDL-WINDOWPOS-UNDEFINED  窗口宽 窗口高)))
-    (run-game game (core (game-render-get game))) ;给core传入了render 2024年6月3日11:05:10
-    (game-quit game)))
+  (let ((game (创建game SDL-INIT-EVERYTHING IMG_INIT_EVERYTHING (bitwise-ior MIX_INIT_FLAC MIX_INIT_MP3 MIX_INIT_OGG)
+			(/ 1000 帧率) wintitle SDL-WINDOWPOS-UNDEFINED SDL-WINDOWPOS-UNDEFINED  窗口宽 窗口高)))
+    (游戏循环 game (core game))))
 
-(define (core render)			;core的返回值是一个渲染器过程
+;; (define (core1 game)
+;;   (lambda (累积时间间隔)
+;;     ;; (let loop ((lag 累积时间间隔))
+;;     ;;   (when (>= lag 时间间隔)
+;;     ;; 	(obj更新 游戏状态 '() '() 谓词-act并联映射 游戏状态谓词-actls)
+;;     ;; 	(set! 累积时间间隔 (- lag 时间间隔))))
+;;     (测试输出 (game-render-get game))
+;;     (测试输出 1)
+;;     (sdl-render-clear (game-render-get game))
+;;     (sdl-set-render-draw-color! (game-render-get game)0 255 0 255) ;; green
+;;     (sdl-render-fill-rect (game-render-get game) (make-sdl-rect 0 0 100 100))
+;;     (sdl-render-present (game-render-get game))
+;;     ))
+
+(define (core game)			;core的返回值是一个渲染器过程
   ;; 在发射子弹的部分遇到问题:无法按住移动的同时射击...
   (mix-open-audio 频率 编码flag 声道数量 chunksize)
-  (let* ((我方飞机s纹理 (s纹理-mk render 我方素材path)
+  (let* ((时间间隔 (get-每帧毫秒 game))
+	 (脉冲间隔 0)
+	 (render (game-render-get game))
+	 (累积时间间隔 0)
+	 ;; 
+	 (我方飞机s纹理 (s纹理-mk render 我方素材path)
 	  ;; (img-load-texture render 我方素材path)
 			)
 	 (飞机纹理信息 (s纹理-纹理信息get 我方飞机s纹理))
@@ -138,7 +156,7 @@
 	 (敌方子弹 '())
 	 (敌机更新计时器 (make-计时器))
 
-	 (时间间隔 0)
+
 
 	 	 ;; 目前有一个方向上不用判断碰撞,还是应该搞个类型分派或者消息传递之类的. 2023年9月25日21:59:44
 	 (碰撞foo? (lambda (子弹 敌机) (可移动对象碰撞? 子弹 敌机 我方子弹w 我方子弹h 敌机w 敌机h)))
@@ -553,12 +571,19 @@
     
     (sttf-字体字符图集初始化 sttf 字体path (list ASCII码区间 中文区间) render 32)
         
-    (lambda (m)
+    (lambda (something)
       
-      (set! 时间间隔 (获取时间戳 计时器0))
+      (set! 脉冲间隔 (获取时间戳 计时器0)) ;大的离谱..... 2024年7月29日01:18:26
       (启动 计时器0)	;重置计时器,下次获取时间坐标时就是时间间隔
-
-      (obj更新 游戏状态 '() '() 谓词-act并联映射 游戏状态谓词-actls)
+      (set! 累积时间间隔 (+ 脉冲间隔 累积时间间隔))
+      (let loop ((lag 累积时间间隔))
+	(when (>= lag 时间间隔)
+	  (测试输出 (list '当前累积时间 (floor lag)))
+	  (obj更新 游戏状态 '() '() 谓词-act并联映射 游戏状态谓词-actls)
+	  (loop (- lag 时间间隔)))
+	(set! 累积时间间隔 lag))
+      (测试输出 (list '累积时间 累积时间间隔))
+      (测试输出 (list '脉冲间隔 脉冲间隔))
       当前渲染器			;这个过程需要返回一个渲染器
       )))
 
