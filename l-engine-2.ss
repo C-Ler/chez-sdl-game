@@ -5,32 +5,49 @@
 
 (import
  (chez-sdl lib sdl)
- ;; (srfi s1 lists)
+ (srfi s1 lists)
+ ;; (srif s3 list-set)
+ (srfi s13 strings)
  (srfi s14 char-sets)			;似乎不支持u8
  (srfi s113 sets)			;需要s128,但是依然有问题 set过程配合comparator结果不行 2023年9月3日15:39:07
  (srfi s128 comparators)
  (srfi s27 random-bits)
- (srfi s1 lists)
- (base-ex simple-ex)
+ (base-ex simple-ex)			;提供了测试输出
+ (pregexp pregexp)
+
+ (srfi s158 generators-and-accumulators) 
+ 					;Generators and Accumulators ,141得惰性也能实现,这个的本质是轻量级按需求值
  )
 
 (include "D://code//aim4//game-uk//sdf-adven-core.scm")
+(include "D://code//aim4//game-uk//数学math.ss")
+;; (include "D://code//aim4//game-uk//entity.ss")
 
-;;; 位运算扩展
-(define (bitwise-or a b)
-  (bitwise-xor (bitwise-and a b) (bitwise-xor a b)))
+;;; 下面这部分代码无法用include 分离出去,会提示没定义...
+(define-sdf-property gobj:坐标ls
+  坐标
+  'predicate complex?
+  'default-value 0
+  )
 
-;;; 数学扩展
-(define π 3.1415926575)
-(define π/2 (/ π 2))			;下
-(define -π (- π))			;
-(define -π/2 (- π/2))			;上
+(define-type 坐标对象 () (gobj:坐标ls))
+
+(define (创建坐标对象 坐标c)
+  (make-坐标对象 '坐标 坐标c))
+
+(define 坐标更新!
+  (most-specific-generic-procedure '坐标更新! 2
+				   (constant-generic-procedure-handler #f)))
+
+(定义匹配度优先广义过程 get-x坐标 1 '默认x坐标)
+(定义匹配度优先广义过程 get-y坐标 1 '默认y坐标)
+(广义过程扩展 get-x坐标 ((坐标对象? obj))
+	      (坐标x (get-坐标 obj)))
+(广义过程扩展 get-y坐标 ((坐标对象? obj))
+	      (坐标y (get-坐标 obj)))
+
 
 (define NULL)
-
-(define (弧度->角度 弧度)
-  ;; 渲染器构造直接调用了这个...  2023年5月11日22:48:09
-  (* 180.0 (/ 弧度 π)))
 
 ;;; 初始化
 (define SDL已初始化标志 #b00001)
@@ -102,37 +119,37 @@
 			  (assertion-violation 'manager-foo "不支持的过程!~s" msg)]))))
       return)))
 
-(定义匹配度优先广义过程 init 2 (constant-generic-procedure-handler #f))	;可能需要链式调用 2024年3月26日22:55:44
-(定义匹配度优先广义过程 get-启动标记 1 (constant-generic-procedure-handler #f))
+;; (定义匹配度优先广义过程 init 2 (constant-generic-procedure-handler #f))	;可能需要链式调用 2024年3月26日22:55:44
+;; (定义匹配度优先广义过程 get-启动标记 1 (constant-generic-procedure-handler #f))
 
-(define gobj:启动标记
-  (make-property '启动标记
-                 'predicate boolean?
-                 'default-value #f)
+(define-sdf-property gobj:启动标记			;计时器也用到了  2024年8月10日16:06:48
+  启动标记
+  'predicate boolean?
+  'default-value #f
   )
 
-(define base控制台?
-  (make-type 'base控制台 (list gobj:启动标记)))
+;; (define base控制台?
+;;   (make-type 'base控制台 (list gobj:启动标记)))
 
-(define 构造base控制台
-  (type-instantiator base控制台?))
+;; (define 构造base控制台
+;;   (type-instantiator base控制台?))
 
-;; (广义过程扩展 get-启动标记 base控制台? getter gobj:启动标记
-;; 	      ;; (property-getter 'base控制台? gobj:启动标记)
-;; 	      )
+;; ;; (广义过程扩展 get-启动标记 base控制台? getter gobj:启动标记
+;; ;; 	      ;; (property-getter 'base控制台? gobj:启动标记)
+;; ;; 	      )
 
-(define get-启动标记 
-  (property-getter gobj:启动标记 base控制台?)
-  )
+;; (define get-启动标记 
+;;   (property-getter gobj:启动标记 base控制台?)
+;;   )
 
-(set-predicate<=! base控制台? object?)
+;; (set-predicate<=! base控制台? object?)
 
-(广义过程扩展 init ((base控制台? obj) (base控制台? 依赖控制台))
-	      (when (not (get-启动标记 依赖控制台))
-		(begin
-		  (sdl-library-init "SDL2.dll")
-		  (sdl-set-main-ready!)
-		  (printf "sdl初始化结果:~d~n" (sdl-init SDL-INIT-EVERYTHING))))) 	;-1 是有问题)
+;; (广义过程扩展 init ((base控制台? obj) (base控制台? 依赖控制台))
+;; 	      (when (not (get-启动标记 依赖控制台))
+;; 		(begin
+;; 		  (sdl-library-init "SDL2.dll")
+;; 		  (sdl-set-main-ready!)
+;; 		  (printf "sdl初始化结果:~d~n" (sdl-init SDL-INIT-EVERYTHING))))) 	;-1 是有问题)
 
 (define (mg-init manager flag)
   ;; 应该加个sicp 按类型分派,这样一个init过程就可以应用于各种类型的参数而不用手写了
@@ -149,17 +166,17 @@
   (manager 'net-init))
 
 ;;; 窗口类型
-(define sdl:window
-  (make-property 'window
-		 'predicate (lambda (p) (ftype-pointer? SDL_Window p))))
+(define-sdf-property sdl:window
+  window
+  'predicate (lambda (p) (ftype-pointer? SDL_Window p)))
 
-(define sdl:surface		;property
-  (make-property 'surface
-                 'predicate (lambda (p) (ftype-pointer? SDL_Surface p))))
+(define-sdf-property sdl:surface		;property
+  surface
+  'predicate (lambda (p) (ftype-pointer? SDL_Surface p)))
 
-(define sdl:renderer
-  (make-property 'renderer
-                 'predicate (lambda (p) (ftype-pointer? SDL_Renderer p))))
+(define-sdf-property sdl:renderer
+  renderer
+  'predicate (lambda (p) (ftype-pointer? SDL_Renderer p)))
 
 
 (define-type 窗口对象 () (sdl:window ;; sdl:surface
@@ -209,17 +226,17 @@
     )
 
 ;;; 游戏类型
-(define gobj:窗口对象
-  (make-property '窗口对象
-                 'predicate 窗口对象?))
+(define-sdf-property gobj:窗口对象
+  窗口对象
+  'predicate 窗口对象?)
 
-(define gobj:每帧毫秒
-  (make-property '每帧毫秒
-                 'predicate real?))
+(define-sdf-property gobj:每帧毫秒
+  每帧毫秒
+  'predicate real?)
 
-(define gobj:quit-foo
-  (make-property 'quit-foo
-                 'predicate procedure?))
+(define-sdf-property gobj:quit-foo
+  quit-foo
+  'predicate procedure?)
 
 ;; (define )
 
@@ -249,28 +266,25 @@
   (get-renderer (get-窗口对象 game)))
 
 (define (game-surface-get game)
-  (sdl-get-window-surface (get-窗口对象 game)))
-
-(define (game无事件时的过程-set! game 无事件时过程)
-  ((game 'game默认过程-set!) 无事件时过程))
+  (sdl-get-window-surface (game-window-get game)))
 
 ;;; 计时器类型
 ;; 生成敌机的这种可以换成协程 2024年7月29日00:45:22
-(define gobj:暂停标记
-  (make-property '暂停标记
-                 'predicate boolean?
-                 'default-value #f)
+(define-sdf-property gobj:暂停标记
+  暂停标记
+  'predicate boolean?
+  'default-value #f
   )
 
-(define gobj:不计时间隔
-  (make-property '不计时间隔
-                 'predicate real?
-                 'default-value 0))
+(define-sdf-property gobj:不计时间隔
+  不计时间隔
+  'predicate real?
+  'default-value 0)
 
-(define gobj:累积时间
-  (make-property '累积时间
-                 'predicate real?
-                 'default-value 0)
+(define-sdf-property gobj:累积时间
+  累积时间
+  'predicate real?
+  'default-value 0
   )
 
 (define-type 计时器 () (gobj:启动标记 gobj:暂停标记 gobj:不计时间隔 gobj:累积时间))
@@ -330,70 +344,6 @@
 	 (foo (car ls))
 	 (sdl-map foo (cdr ls)))))
 
-(define (rct多矩形碰撞? rcdlsa rcdlsb)
-  (call/cc
-   (lambda (k)	 ;; (sound (mix-load-wav 贪吃蛇音效path))
-     (let loop ((lsa rcdlsa))
-       (cond ((null? lsa) #f)
-	     (else
-	      (let loop2 ((lsb rcdlsb))
-		(cond ((null? lsb) (loop (cdr lsa)))
-		      ((let ((sprite-a (car lsa))
-			     (sprite-b (car lsb)))
-			 (rct矩形碰撞? (make-sdl-rect (rcdx坐标 sprite-a) (rcdy坐标 sprite-a) (rcd渲染宽度 sprite-a) (rcd渲染高度 sprite-b))
-				     (make-sdl-rect (rcdx坐标 sprite-b) (rcdy坐标 sprite-b) (rcd渲染宽度 sprite-b) (rcd渲染高度 sprite-b))))
-		       (k #t))
-		      (else
-		       (loop2 (cdr lsb))))))))))) 
-
-(define (rct矩形碰撞? sdl-recta sdl-rectb)
-  (let ((ax (sdl-rect-x sdl-recta))
-	(aw (sdl-rect-w sdl-recta))
-	(bx (sdl-rect-x sdl-rectb))
-	(bw (sdl-rect-w sdl-rectb))
-	(ay (sdl-rect-y sdl-recta))
-	(ah (sdl-rect-h sdl-recta))
-	(by (sdl-rect-y sdl-rectb))
-	(bh (sdl-rect-h sdl-rectb))
-	)
-    ;; 使用<=是因为贪吃蛇的边界重合了....使用顺延坐标的同时改变移动速度即可,增大一个像素
-    (碰撞? ax ay aw ah bx by bw bh)))
-
-(define (碰撞0? x1 y1 w1 h1 x2 y2 w2 h2)
-  (cond ((or (< (+ x1 w1) x2)
-	      (< (+ x2 w2) x1)
-	      (< (+ y1 h1) y2)
-	      (< (+ y2 h2) y1)
-	      ) #f)
-	(else #t)))
-
-(define (碰撞help a1 a1增量 a2 a2增量)
-  (< (max a1 a2) (min (+ a1 a1增量) (+ a2 a2增量))))
-
-(define (碰撞? x1 y1 w1 h1 x2 y2 w2 h2)
-  (and (碰撞help x1 w1 x2 w2)
-       (碰撞help y1 h1 y2 h2)
-       ))
-
-(define (一多碰撞? x1 y1 w1 h1 xywhls)
-  (cond ((null? xywhls) #f)
-	(else
-	 (or
-	  (apply (lambda (x2 y2 w2 h2)
-		   (碰撞? x1 y1 w1 h1 x2 y2 w2 h2))
-		 (car xywhls)
-		 )
-	  (一多碰撞? x1 y1 w1 h1 (cdr xywhls))))))
-
-(define (多矩形碰撞? xywhlsa xywhlsb)
-  (cond ((null? xywhlsa) #f)
-	(else
-	 (or
-	  (apply (lambda (x y w h)
-		   (一多碰撞? x y w h xywhlsb))
-		 (car xywhlsa))
-	  (多矩形碰撞? (cdr xywhlsa) xywhlsb))))) 
-
 (define (渲染器 thunk render r g b a)
   ;; prepareScene
   (sdl-set-render-draw-color! render r g b a)
@@ -403,28 +353,14 @@
   (sdl-render-present render)
   )
 
-;;;但凡要显示,必然有x,y
-(define gobj:坐标ls
-  (make-property '坐标
-                 'predicate complex?
-                 'default-value 0)
-  )
-
-(define-type 坐标对象 () (gobj:坐标ls))
-
-(define (创建坐标对象 坐标c)
-  (make-坐标对象 '坐标 坐标c))
-
-(define 坐标更新!
-  (most-specific-generic-procedure '坐标更新! 2
-				   (constant-generic-procedure-handler #f)))
-
-(定义匹配度优先广义过程 get-x坐标 1 '默认x坐标)
-(定义匹配度优先广义过程 get-y坐标 1 '默认y坐标)
-(广义过程扩展 get-x坐标 ((坐标对象? obj))
-	      (坐标x (get-坐标 obj)))
-(广义过程扩展 get-y坐标 ((坐标对象? obj))
-	      (坐标y (get-坐标 obj)))
+(define-syntax 渲染器构造
+  (syntax-rules ()
+    [(_ render r g b a e ...)
+     (lambda ()
+       (sdl-set-render-draw-color! render r g b a)
+       (sdl-render-clear render)
+       e ...
+       (sdl-render-present render))]))
 
 ;;;
 (define (纹理信息-w 纹理信息)
@@ -440,10 +376,10 @@
 	 (cadddr 纹理信息))
 	))
 
-(define gobj:纹理
-  (make-property '纹理
-		 'predicate any-object?		;因为目前没有实现判断C的指针是某个类型的方法,这里需要一个对任何对象都返回#t的谓词
-		 'default (lambda () '无效的情况)))
+(define-sdf-property gobj:纹理
+  纹理
+  'predicate any-object?		;因为目前没有实现判断C的指针是某个类型的方法,这里需要一个对任何对象都返回#t的谓词
+  'default (lambda () '无效的情况))
 
 (define-type 纹理 () (gobj:纹理))
 
@@ -466,369 +402,64 @@
 	      (sdl-render-copy render (get-纹理 纹理) 取用框
 			       (make-sdl-rect (get-x坐标 obj) (get-y坐标 obj) (sdl-rect-w 取用框) (sdl-rect-h 取用框))))
 
-(define (字串纹理-mk ttf-path  fontsize)
-  ;; 即便是生成了纹理,颜色依然随机  2023年3月16日22:36:17
-  ;; 在3月21解决了颜色随机问题,解决思路可能在某个注释  2023年8月9日19:50:18
-  ;; 字体的路径是第一个大范围,其次是某个区域内连续的文本,只要属性(字号,颜色)一致,就可以单独变成对象
-  ;; 按愿望思维,应该有个构造器,还有一堆析取器提取需要的部分(fong,surface还有texture),提取出来的东西传入texture进行渲染,还需要留出给内部构造set!的部分.
-  (let* ((字体 (ttf-open-font ttf-path fontsize))
-	 (字体表面 '字体表面) ;这个初始化可能没有意义,不如渲染前先set!  2023年4月5日21:14:34
-	 (字体宽  '字体宽)
-	 (字体高 '字体高)
-	 (字体纹理 '字体纹理))
-    (letrec ((res (lambda (m)
-		    (cond
-		     [(equal? m '字体表面-set)
-		      (lambda (ttf-render-fun str sdl-color)
-			(set! 字体表面 (ttf-render ttf-render-fun 字体 str sdl-color))
-			(set! 字体宽 (ftype-ref SDL_Surface (w) 字体表面))
-			(set! 字体高 (ftype-ref SDL_Surface (h) 字体表面))
-			)]
-		     [(equal? m '字体纹理-set)
-		      (lambda (render)
-			(if 字体表面
-			    (set! 字体纹理 (sdl-create-texture-from-surface render 字体表面))
-			    ))]
-		     [(equal? m '字体纹理-get) 字体纹理]
-		     [(equal? m '字体纹理宽) 字体宽]
-		     [(equal? m '字体纹理高) 字体高]
-		     [(equal? m '改变字体大小)
-		      ;; 可能可以通过缩放实现  2023年8月23日11:59:19
-		      (ttf-close-font 字体)
-		      
-		      ]
-		     ((equal? m 'str更新到texture)
-		      ;; 这种方法每次渲染不同的字符串,都需要重新从font构造surface以及texture
-		      ;; 按照另一种思路,将每个字符单独bilt,然后构造图集,保存索引框,渲染的时候按照索引框访问渲染.  2023年8月23日23:11:05
-		      (lambda (str ttf-render-fun render r g b a)
-			((res '字体表面-set) ttf-render-fun str (make-sdl-color r g b a))
-			((res '字体纹理-set) render)
-			))
-		     [(equal? m '渲染字体)
-		      (lambda (render x y)
-			(sdl-render-copy-ex render 字体纹理 NULL (make-sdl-rect x y 字体宽 字体高) 0.0 NULL SDL_FLIP_NONE)
-			)]
-		     [else
-		      (assertion-violation 字串纹理 "无效的消息" m)
-		      ])
-		    )
-		  ))
-      res
-      )
-    )
-  )
+;;; 属性没办法放进被include的文件 以下是sdf-ttf部分 
+(define-sdf-property gobj:font
+  font
+  'predicate any-object?)
 
-(define (字串纹理-字串更新! 字串纹理 str ttf-render-fun render r g b a)
-  ((字串纹理 'str更新到texture) str ttf-render-fun render r g b a))
+(define-sdf-property gobj:图集表面
+  图集表面
+  'predicate any-object?)
 
-(define (字串纹理-字体高 字串纹理)
-  (字串纹理 '字体纹理高))
+(define-sdf-property gobj:图集纹理
+  图集纹理
+  'predicate any-object?
+  'default-value '没有纹理)
 
-(define (字串纹理-字体宽 字串纹理)
-  (字串纹理 '字体纹理宽))
+(define-sdf-property gobj:图集规格
+  图集规格
+  'predicate integer?
+  'default-value 480)
 
-(define (字串纹理渲染 字串纹理 render x y)
-  ((字串纹理 '渲染字体) render x y))
+(define-sdf-property gobj:扩展次数
+  扩展次数
+  'predicate integer?
+  'default-value 1)
 
-(define (编码区间->个数 区间)
-  (+ 1 (apply - (reverse 区间))))
+(define-sdf-property gobj:字符-取用框ht
+  字符-取用框ht
+  'predicate hashtable?
+  'default-value (make-hashtable equal-hash equal?))
 
-(define (编码区间ls->字符个数 编码区间ls)
-  (fold-left (lambda (num 区间)
-	       (+ num (编码区间->个数 区间)))
-	     0 编码区间ls))
+(define-sdf-property gobj:空白格坐标
+  第一个空白格坐标ls
+  'predicate list?
+  'default-value '(0 0))
 
-(define (能覆盖全部字符的正方形边长 字符个数)
-  (ceiling (sqrt 字符个数)))
+(define-sdf-property gobj:ASCII字符宽度
+  ASCII字符宽度
+  'predicate integer?
+  'default-value 0)
 
-(define ASCII码区间 '(0 127))
-(define 中文区间 '(#x4e00 #x9FA5))
-(define 六十四卦区间 '(#x4DC0 #x4DFF))
-;;; parallelrealities的文字渲染方法
-(define (sttf-管理 color-depth)
-  ;; 字体是一个维度,从ttf到surface,背景透明处理,将每个字符blit到大的surface之后再转texture的 集邮册 是另一个维度,存的值是 图集中字符对应图像的坐标
-  ;; 宽度不同的处理,涉及unicode字符的处理.
-  ;; 本质上是构造数据结构和对应的构造过程,修改过程,析取过程,应该会涉及到部分局部环境
-  ;; 需要一个二维的ht,维度分别是font,字符
-  ;; 对比将全部字符存入一个矩形,ht只保存坐标的情形 和 将字符的矩形存入ht 两种情况占用的内存,初始化的消耗,修改的消耗,读取的消耗
-  ;; 其实可以在原来思路的基础上,如果遇到了字符数量 x size 大于surface的情况,可以构造一个新的,然后将旧的blit上去,只在ht中保存坐标,毕竟逐个保存surface,会有一堆重复信息占用内存  2023年8月19日12:28:23
-  ;; 这东西的本质就是EOPL.CH2的env,构造器和观察器,构造器也是分成两个,空的情形,还有按font和char加入的情形.观察器目前只有取出的情形,输入env font char 得到 val
-  ;; font-texture-size 决定了字符图集的规格,初始化成一个方块
-  ;; 最新问题是使用中扩展,会读取已有的集邮册texture,但是无法转换成surface,然后blit新的字符上去 2024年6月23日21:55:42
-  (let* ((fontht (make-hashtable string-hash string=?))	;二维hashtable,存储不同字体对应的图集ht
-	 )
-    (lambda (m)
-      (case m
-	[(glyphs-extendbycode)
-	 (lambda (fontpath code-range-ls render size)	;这个size扔到初始化比较好
-	   ;; 确保输入的str没有重复的 (lset-difference string=? (string->list str) (hashtable-keys glyphsht))
-	   (let* ((font (ttf-open-font fontpath size))
-		  (whls (ttf-size-text-m font "0" 'utf8))
-		  (边长 (begin (测试输出 whls) (exact (能覆盖全部字符的正方形边长 (编码区间ls->字符个数 code-range-ls)))))
-		  (图集宽 (* 2 边长 (car whls)))
-		  (图集高 (* 2 边长 (cadr whls)) )
-		  (surface (sdl-create-rgb-surface 0 图集宽 图集高 color-depth 0 0 0 #xff))	;这个规格要么根据字符数量毛估,要么超过范围后扩大surface,blit已有的上去 2024年6月24日13:12:13
-		  ;; 毛估需要得到字符的wh信息
-		  (图集-glyphsht-ls (hashtable-ref fontht fontpath (list (sdl-create-rgb-surface 0 图集宽 图集高 color-depth 0 0 0 #xff)
-									 (make-hashtable equal-hash equal?))))	;每个字体对应不同的hash,默认返回一个空白图形集surface、字符和格子的ht
-		 
-		  (glyphsht (cadr 图集-glyphsht-ls))
-		  )
-	     (when (< 0 (sdl-set-color-key! surface SDL-TRUE (sdl-map-rgba (ftype-ref SDL_Surface (format) surface) 0 0 0 0)))
-	       (error 'sttf-扩展 "图集颜色key设置失败")) ;确保背景透明,必须在convert前这样处理,顺序颠倒的话,字符也会透明,什么都不显示
-	     (set! surface (sdl-convert-surface surface
-						(ftype-ref SDL_Surface (format)
-							   (ttf-render ttf-render-utf8-blended font "0" (make-sdl-color 0 0 0 #xff)))
-						0)) ;确保背景透明,必须在convert前这样处理,顺序颠倒的话,字符也会透明,什么都不显示
-	     (let loop0 ((区间ls code-range-ls)
-			 (新区间x 0)
-			 (新区间y 0)
-		)
-	       (cond ((null? 区间ls)
-		      ;; (> 字符编码 (cadr 字符编码ls))
-		      (begin
-			;; (sdl-save-bmp surface "字符集.bmp")
-			(hashtable-set!
-			 fontht fontpath
-			 (list (sdl-create-texture-from-surface
-				render
-				surface
-				)
-			       glyphsht
-			       ))))
-		     (else
-		      (let ((上限 (cadar 区间ls)))
-			(let loop ((字符编码 (caar 区间ls))
-				   (索引框x 新区间x)
-				   (索引框y 新区间y))
-			  (cond
-			   ((> 字符编码 上限)
-			    (loop0 (cdr 区间ls)
-				   索引框x
-				   索引框y)
-			    )
-			   (else
-			    (begin
-			      (let* ((字符 (integer->char 字符编码))
-				     (text (ttf-render ttf-render-utf8-blended font (string 字符) (make-sdl-color 255 255 255 #xff)))  ;这个颜色应该也可以参数化
-				     (whls (ttf-size-text-m font (string 字符) 'utf8))
-				     (字符w (car whls))
-				     (字符h (cadr whls))
-				     (索引框 (make-sdl-rect 索引框x 索引框y 字符w 字符h))
-				     )
-				;; (display whls)
-				;; (newline)
-				;; (sdl-save-bmp text (string 字符))
-				(sdl-blit-surface text (make-sdl-rect 0 0 字符w 字符h)
-						  surface 索引框)	;集邮的过程,text保存下来都是背景透明的字,但是blit到surface再保存,就是空白
-				(hashtable-set! glyphsht 字符 索引框)	;按字符取得索引框,然后框出来对应的texture  2023年8月26日22:25:45
-				(let ((x+ (+ 索引框x 字符w)))
-				  (if (>=  x+ 图集宽) ;换行
-				      (let ((y+ (+ 索引框y 字符h 1)))
-					(if (>= (+ y+ 字符h) 图集高) ;超出下限
-					    (error 'sttf "字符图集高度不足" (list y+ 图集高))	;必要时更新surface,将原有图集B到一个更大的空图集上  2023年8月26日23:16:35
-					    (loop (+ 字符编码 1)
-						  0
-						  y+)))
-				      (loop (+ 1 字符编码) ;不换行的情况 
-					    x+
-					    索引框y))))))))))))
-	     ))]
-	[(glyphs-extend)
-	 (lambda (fontpath str render size)	;这个size扔到初始化比较好
-	   ;; 确保输入的str没有重复的 (lset-difference string=? (string->list str) (hashtable-keys glyphsht))
-	   (let* (
-		  (surface (sdl-create-rgb-surface 0 图集规格 图集规格 color-depth 0 0 0 #xff))
-		  (图集-glyphsht-ls (hashtable-ref fontht fontpath (list (sdl-create-rgb-surface 0 图集规格 图集规格 color-depth 0 0 0 #xff) (make-hashtable equal-hash equal?) (list 0 0))))	;每个字体对应不同的hash,默认返回一个空白图形集surface、第一个空白格子的坐标、字符和格子的ht
-		  ;; (surface (car 图集-glyphsht-ls))
-		  (第一个空白格子的坐标 (caddr 图集-glyphsht-ls))
-		  (glyphsht (cadr 图集-glyphsht-ls))
-		  )
-	     (let ((字符池增量 (lset-difference char=? (集合化 (string->list str)) (hashtable-keys glyphsht))))
-	       (if (null? 字符池增量)	;防止频繁加载font 2024年6月23日22:47:27
-		   '无需扩展
-		   (let ((font (ttf-open-font fontpath size)))
-		     ;; (测试输出 1)
-		     ;; (测试输出 surface)
-		     (when (< 0 (sdl-set-color-key! surface SDL-TRUE (sdl-map-rgba (ftype-ref SDL_Surface (format) surface) 0 0 0 0)))
-		       (error 'sttf-扩展 "图集颜色key设置失败")) ;确保背景透明,必须在convert前这样处理,顺序颠倒的话,字符也会透明,什么都不显示
-		     ;; (测试输出 2)
-		     ;; (测试输出 surface)
-		     (when (equal? 第一个空白格子的坐标 '(0 0))
-		       (set! surface (sdl-convert-surface surface
-							  (ftype-ref SDL_Surface (format)
-								     (ttf-render ttf-render-utf8-blended font "0" (make-sdl-color 0 0 0 #xff)))
-							  0))) ;确保背景透明,必须在convert前这样处理,顺序颠倒的话,字符也会透明,什么都不显示
-		     (let loop ((字符池增量 字符池增量)
-				(索引框x (car 第一个空白格子的坐标))
-				(索引框y (cadr 第一个空白格子的坐标)))
-		       (cond ((null? 字符池增量)
-			      (begin
-				;; (sdl-save-bmp surface "字符集.bmp")
-				(hashtable-set!
-				 fontht fontpath
-				 (list (sdl-create-texture-from-surface
-					render
-					surface
-					)
-				       glyphsht
-				       (list 索引框x 索引框y)
-				       ))))
-			     (else
-			      (begin
-				(let* ((字符 (car 字符池增量))
-				       (text (ttf-render ttf-render-utf8-blended font (string 字符) (make-sdl-color 255 255 255 #xff)))  ;这个颜色应该也可以参数化
-				       (whls (ttf-size-text-m font (string 字符) 'utf8))
-				       (字符w (car whls))
-				       (字符h (cadr whls))
-				       (索引框 (make-sdl-rect 索引框x 索引框y 字符w 字符h))
-				       )
-				  ;; (display whls)
-				  ;; (newline)
-				  ;; (sdl-save-bmp text (string 字符))
-				  (sdl-blit-surface text (make-sdl-rect 0 0 字符w 字符h)
-						    surface 索引框)	;集邮的过程,text保存下来都是背景透明的字,但是blit到surface再保存,就是空白
-				  (hashtable-set! glyphsht 字符 索引框)	;按字符取得索引框,然后框出来对应的texture  2023年8月26日22:25:45
-				  (let ((x+ (+ 索引框x 字符w)))
-				    (if (>=  x+ 图集规格) ;换行
-					(let ((y+ (+ 索引框y 字符h 1)))
-					  (if (>= (+ y+ 字符h) 索引框y) ;超出下限
-					      (error 'sttf "字符图集高度不足" 图集规格)	;必要时更新surface,将原有图集B到一个更大的空图集上  2023年8月26日23:16:35
-					      (loop (cdr 字符池增量)
-						    0
-						    y+)))
-					(loop (cdr 字符池增量)
-					      x+
-					      索引框y)))))))))))
-	     ))]
-	[(glyphs-get)
-	 (lambda (fontpath char)
-	   (hashtable-ref (hashtable-ref fontht fontpath (make-hashtable equal-hash equal?)) char #f))]
-	[(glyphs-图集索引框ht-get)
-	 (lambda (fontpath)
-	   (hashtable-ref fontht fontpath (cons '() '())))]))))
+(define-sdf-property gobj:ASCII字符高度
+  ASCII字符高度
+  'predicate integer?
+  'default-value 0)
 
-(define (sttf-字体字符图集初始化 sttf fontpath code-range-ls render size)
-  ((sttf 'glyphs-extendbycode) fontpath code-range-ls render size))
+(define-type 游戏字体 () (gobj:font gobj:图集表面 gobj:图集纹理 gobj:图集规格 gobj:扩展次数 gobj:字符-取用框ht gobj:空白格坐标 gobj:ASCII字符宽度 gobj:ASCII字符高度))
 
-(define (sttf-扩展 sttf fontpath str render 字体加载尺寸)
-  ((sttf 'glyphs-extend)  fontpath str render 字体加载尺寸)
-  )
+(define-sdf-property gobj:字符串
+  字符串
+  'predicate string?
+  'default-value "")
 
-(define (sttf-图集-get sttf fontpath )
-  ((sttf 'glyphs-图集索引框ht-get) fontpath))
+(define-sdf-property gobj:字体
+  game-字体
+  'predicate 游戏字体?)
 
-(define (sttf字符串渲染 sttf render font string init-x init-y
-			r g b
-			对齐方式 字符框宽度 字符x间距系数 字符y间距系数 显示方式
-			w缩放系数 h缩放系数 字符旋转角度 中心点 镜像flag)
-  ;; 为了实现不同的对齐方式,目前必须要遍历两次
-  ;; 如果不是按行渲染,而是斜着渲染,会有很大的不同
-  
-  (let ((text-htp (sttf-图集-get sttf font)))
-    (when (null? (car text-htp))
-      (error '字符串渲染 "图集为空" font))
-    (let* ((text (car text-htp))
-	   (索引框ht (cadr text-htp))
-	   (字符框规格 (sttf字符框规格get sttf string font)) ;这个过程计算了整个字符串的宽和不换行的长 2024年6月3日12:22:47
-	   (字符框宽 (car 字符框规格))
-	   (x (case 对齐方式
-		      [(居中) (- init-x (/ 字符框宽 2))] ;x是中间位置的坐标
-		      [(右对齐) (- init-x 字符框宽)]
-		      [else init-x]
-		      ))
-	   (渲染函数 (case 显示方式
-		      [(仅w) (lambda (render 纹理 索引框 sdl矩形 旋转角度 中心点 镜像flag) '())]
-		      [(字符渲染) sdl-render-copy-ex]
-		      [else sdl-render-copy-ex])))
-      (or (= 0 (sdl-set-texture-color-mod! text r g b))
-	  (error 'sttf字符串渲染 "颜色设置失败"))
-      (let loop ((charls (string->list string))
-		 (w-acc 0)
-		 (y init-y)) 
-	(cond ((null? charls) (list (+ x w-acc) y))	 ;字符串是否为空
-	      ((> y 窗口高) (error 'sttf字符串渲染 "渲染文本框h超过窗口h" y)) ;防止y因为单个字符宽度超过限制而无限增大. 2023年9月3日15:51:05
-	      (else
-	       ;; 在ht存矩形有个2好处,1是可以直接被这里调用,2是不用来回访问获取纹理和set-color-mod,减少计算开销
-	       (let* ((当前字符 (car charls))
-		      (索引框 (hashtable-ref 索引框ht 当前字符 #f)))
-		 ;; (when (not 索引框)
-		 ;;   (error 'sttf字符串渲染 "未检索到的字符" char))
-		 (let ((w (* w缩放系数 (sdl-rect-w 索引框))) ;w可以通过显示foo的返回值得到,但是为了在循坏外只判定一次同时不重复实现 单字符渲染的代码--不行,要判断宽度是否越界...
-		       (h (* h缩放系数 (sdl-rect-h 索引框))))
-		   (cond ((< (* w缩放系数 (+ w-acc w)) 字符框宽度) ;不换行的情况,第一个字符就超过宽度限制应当报错,最好在循环开始前就判断一下,目前这样会导致无限循环下去  2023年9月3日15:49:33
-			  (渲染函数 render text 索引框 (make-sdl-rect (+ x (* 字符x间距系数 w-acc)) y w h) 字符旋转角度 中心点 镜像flag)
-			  (loop (cdr charls)
-				(+ w-acc w)
-				y))
-			 ;; ((null? (cdr charls))	;最后一个字符的渲染,感觉是为了计算返回值搞出来的畸形,其实不需要. 2024年6月3日12:06:04
-			 ;;  (let ((减一列区域宽度 (* 字符x间距系数 w-acc)))
-			 ;;    (map + (list 减一列区域宽度 y)
-			 ;; 	 (sttf字符渲染 (car charls) 索引框ht  render text (+ x 减一列区域宽度) y w缩放系数 h缩放系数 字符旋转角度 中心点 镜像flag 渲染函数))
-			 ;;    )
-			 ;;  )
-			 (else
-			  (loop charls	;换行之后再渲染
-				0
-				(+ y (* 字符y间距系数 (sdl-rect-h 索引框)))))))))))
-      )
-    ))
+(define-type 游戏字符串 () (gobj:字体 gobj:字符串))
 
-;; (define (sttf字符渲染 字符 索引框ht render 纹理 x y w缩放系数 h缩放系数 旋转角度 中心点 镜像flag 渲染函数)
-;;   ;; 这里因为涉及两个版本,需要返回过程
-;;   (let* ((索引框 (hashtable-ref 索引框ht 字符 #f))))
- 
-;;   (let ((w (* w缩放系数 (sdl-rect-w 索引框)))
-;; 	(h (* h缩放系数 (sdl-rect-h 索引框))))
-    
-;;     (渲染函数 render 纹理 索引框 (make-sdl-rect x y w h) 旋转角度 中心点 镜像flag)
-;;     )
-;;   (list w h))
-
-(define (sttf字符串框渲染 sttf render font str x y r g b 对齐方式 最大宽度)
-  (case 最大宽度
-    [(0) (sttf字符串单行渲染 sttf render font str x y r g b 对齐方式)]
-    [else
-     (sttf字符串换行渲染 sttf render font str x y r g b 对齐方式 最大宽度)]))
-
-(define 一般单行字符宽度上限 100000)
-
-(define (sttf字符渲染进矩形区域 sttf render font str init-x init-y r g b 对齐方式 字符框宽度 字符旋转角度 中心点 镜像flag)
-  ;; (sttf-扩展 sttf 字体path str render 32) ;放到这里试试 2024年6月17日20:02:48 每次渲染都要扩展一遍,卡到爆炸 2024年6月17日20:03:40
-  (let* ((whls (sttf字符串渲染 sttf render font str init-x init-y r g b 对齐方式 一般单行字符宽度上限 1 1 '仅w
-			       1 1 字符旋转角度 中心点 镜像flag))
-	 (字符串宽度 (car whls)))
-    ;; (display whls)
-    ;; (newline)
-    (cond ((>  字符串宽度 字符框宽度)
-	   (测试输出 (list str 字符串宽度))
-	   (let ((w缩放系数 (/ 字符框宽度 字符串宽度)))
-	     (sttf字符串渲染 sttf render font str init-x init-y r g b 对齐方式 字符框宽度 w缩放系数 w缩放系数 '字符渲染
-			     w缩放系数 w缩放系数 字符旋转角度 中心点 镜像flag)))
-	  (else
-	   (sttf字符串渲染 sttf render font str init-x init-y r g b 对齐方式 字符框宽度 1 1 '字符渲染
-			     1 1 字符旋转角度 中心点 镜像flag))))
-  )
-
-(define (sttf字符框规格get sttf str font)
-  (let ((索引框ht (cadr (sttf-图集-get sttf font))))
-    (when (null? 索引框ht)
-      (error '字符框规格get "font下图集为空" font))
-    (let loop ((charls (string->list str))
-	       (w 0)
-	       (h 0))
-      (cond ((null? charls) (list w h))
-	    (else
-	     (let* ((rect (hashtable-ref 索引框ht (car charls) #f)))
-	       (when (not rect)
-		 (error 'sttf字符串渲染 "未检索到的字符" (car charls)))
-	       (let ((charw (sdl-rect-w rect))
-		     (charh (sdl-rect-h rect)))
-		 (loop (cdr charls)
-		       (+ w charw)
-		       (max h charh)))))))
-    ))
-;;; 
+(include "D://code//aim4//game-uk//文本渲染-sdf-ttf.ss")
 
 ;;; 44100 AUDIO_S16LSB 2 2048
 (define (s音频-mk 音乐pathls 音效pathls 频率 编码flag 频道数量 chunksize 初始音量)
@@ -899,11 +530,10 @@
   (音频 '音效播放))
 
 ;;; 音频部分
-(define gobj:music
-  (make-property '音乐
-		 'predicate any-object?		;
-		 'default '无效的音乐))
-
+(define-sdf-property gobj:music
+  音乐
+  'predicate any-object?		;
+  'default '无效的音乐)
 
 (define-type s音乐 () (gobj:music))
 (define (创建音乐 path)
@@ -919,20 +549,21 @@
 		      (else
 		       (mix-pause-music)))))
 
-(define gobj:sound
-  (make-property '音效
-		 'predicate any-object?
-		 'default '无效的音效))
+(define-sdf-property gobj:sound
+  音效
+  'predicate any-object?
+  'default '无效的音效)
 
 (define-type s音效 () (gobj:sound))
+
 (define (创建音效 path)
   (make-s音效 '音效 (mix-load-wav path))) ;遇到多个音效的情况,这样还不够 2024年5月9日19:31:53
 
 
-(define gobj:音效ht
-  (make-property '音效__
-		 'predicate hashtable?
-		 'default (make-eqv-hashtable)))
+(define-sdf-property gobj:音效ht
+  音效__
+  'predicate hashtable?
+  'default (make-eqv-hashtable))
 
 ;;; 
 (define 表面显示
@@ -956,208 +587,99 @@
   (map (lambda (num)
 	 (number->string num 16))
        ls))
+;;; 表面
+(define-sdf-property gobj:表面
+  表面
+  'predicate any-object?)
 
-(define (s表面mk init表面)
-  ;; 必须要是指针对象才能修改像素值,直接ftype-set! ftype-ref的返回值不行
-  (let* ((表面 (sdl-convert-surface-format init表面 SDL_PIXELFORMAT_RGBA32 0))  ;由于传入的表面 pixelformat是24位的,修改像素有些麻烦,所以最后还是用了去年的策略,先转换格式  2023年5月7日20:34:24
-	 (像素指针 (make-ftype-pointer unsigned-32 (ftype-ref SDL_Surface (pixels) 表面))))
-    ;; (sdl-guardian init表面)
-    ;; (sdl-guardian 表面)
-    (sdl-guardian 像素指针)
-    (letrec ((res
-	      (lambda (m)
-		(cond 
-		 [(equal? m 'w)
-		  (ftype-ref SDL_Surface (w) 表面)]
-		 [(equal? m 'h)
-		  (ftype-ref SDL_Surface (h) 表面)]
-		 [(equal? m 'pixels)
-		  (ftype-ref SDL_Surface (pixels) 表面)]
-		 [(equal? m 'format)
-		  (ftype-ref SDL_Surface (format) 表面)]
-		 [(equal? m '像素格式)
-		  (ftype-ref SDL_PixelFormat (format) (res 'format))]
-		 [(equal? m 'init表面)
-		  init表面]
-		 [(equal? m '表面)
-		  表面]
-		 [(equal? m '像素)
-		  (lambda (偏移量)
-		    (ftype-ref unsigned-32 () 像素指针 偏移量))
-		  ]
-		 [(equal? m 'pixels->ls)
-		  (lambda (长度)
-		    (let loop ((i 0)
-			       (acc '()))
-		      (cond ((= i 长度) (reverse acc))
-			    (else
-			     (loop (+ i 1)
-				   (cons (ftype-ref unsigned-32 () 像素指针 i) acc))))
-		      ))]
-		 [(equal? m 'pixels->bytels)
-		  (lambda (长度)
-		    (let loop ((i 0)
-			       (acc '()))
-		      (cond ((= i 长度) (reverse acc))
-			    (else
-			     (loop (+ i 1)
-				   (cons (foreign-ref 'unsigned-8 (ftype-ref SDL_Surface (pixels) 表面) i) acc))))
-		      ))]
-		 [(equal? m 'pitch)
-		  (ftype-ref SDL_Surface (pitch) 表面)]
-		 [(equal? m '像素set!)
-		  (lambda (偏移量 像素值)
-		    (ftype-set! unsigned-32 () 像素指针 偏移量 像素值))]
-		 [(equal? m '像素map-set!)
-		  (lambda (偏移量 r g b a)
-		    (ftype-set! unsigned-32 () 像素指针 偏移量
-				(sdl-map-rgba (res 'format)
-					      r g b a)))]
-		 [else
-		  (error 's表面 "不支持的过程~n" m)]))))
-      res
-      )
-    )
-  )
+(define-sdf-property gobj:像素指针
+  像素指针
+  'predicate (lambda (x) (ftype-pointer? x)))
 
-(define (s表面-表面 表面)
-  (表面 '表面))
+(define-type 游戏表面 () (gobj:表面 gobj:像素指针))
 
-(define (s表面-init表面 表面)
-  (表面 'init表面))
-
-(define (s表面-w 表面)
-  (表面 'w))
-
-(define (s表面-h 表面)
-  (表面 'h))
-
-(define (s表面-像素 表面 偏移量)
-  ((表面 '像素) 偏移量))
-
-(define (s表面-format 表面)
-  (表面 'format))
-
-(define (s表面-像素格式 表面)
-  (表面 '像素格式))
-
-(define (s表面-pitch 表面)
-  (表面 'pitch))
-
-(define (s表面-pixels->ls 表面 pixels长度)
-  ((表面 'pixels->ls) pixels长度))
-
-(define (s表面-pixels->bytels 表面 pixel长度)
-  ((表面 'pixels->bytels) (* pixel长度 (/ (s表面-pitch 表面) 8))))
-
-(define (s表面-像素set! 表面 偏移量 像素值)
-  ((表面 '像素set!) 偏移量 像素值))
-
-(define (s表面-像素map-set! 表面 偏移量 r g b a)
-  ((表面 '像素map-set!) 偏移量 r g b a))
-
-
-(define (坐标x 坐标)
-  (cond ((null? 坐标)
-	 (assertion-violation '坐标x "坐标为'()" 坐标))
-	(else
-	 (car 坐标))))
-
-(define (坐标y 坐标)
-  (cond ((< (length 坐标) 2)
-	 (assertion-violation '坐标y "坐标维度不足" 坐标)
+(define (创建游戏表面 surface)
+  (let* ((表面 (sdl-convert-surface-format surface SDL_PIXELFORMAT_RGBA32 0)) ;由于传入的表面 pixelformat是24位的,修改像素有些麻烦,所以最后还是用了去年的策略,先转换格式  2023年5月7日20:34:24
 	 )
-	((null? 坐标)
-	 (assertion-violation '坐标y "贪吃蛇关节为'()" 坐标))
+    (make-游戏表面 '表面 表面 '像素指针 (make-ftype-pointer unsigned-32 (ftype-ref SDL_Surface (pixels) 表面)))))
+
+(定义匹配度优先广义过程 get-w 1 0)
+(定义匹配度优先广义过程 get-h 1 0)
+
+(广义过程扩展 get-w ((游戏表面? obj))
+	      (ftype-ref SDL_Surface (w) (get-表面 obj)))
+
+(广义过程扩展 get-h ((游戏表面? obj))
+	      (ftype-ref SDL_Surface (h) (get-表面 obj)))
+
+(定义匹配度优先广义过程 get-像素 2 0)
+
+(广义过程扩展 get-像素 ((游戏表面? obj) (integer? 偏移量))
+	      (ftype-ref unsigned-32 () (get-像素指针 obj) 偏移量))
+
+(定义匹配度优先广义过程 get-format 1 0)
+
+(广义过程扩展 get-format ((游戏表面? obj))
+	      (ftype-ref SDL_Surface (format) (get-表面 obj)))
+
+(定义匹配度优先广义过程 set-像素! 4 0)
+
+(广义过程扩展 set-像素! ((游戏表面? obj) (integer? 偏移量) (integer? 像素值))
+	      (ftype-set! unsigned-32 () (get-像素指针 obj) 偏移量 像素值))
+
+(定义匹配度优先广义过程 set-map-像素! 6 0)
+(广义过程扩展 set-map-像素! ((游戏表面? obj) (integer? 偏移量) (integer? r) (integer? g) (integer? b) (integer? a))
+	      (ftype-set! unsigned-32 () (get-像素指针 obj) 偏移量 (sdl-map-rgba (get-format obj)
+										 r g b a)))
+
+;;; atlas
+(include "D://code//aim4//game-uk//图集atlas.ss")
+
+;;; physics
+(include "D://code//aim4//game-uk//物理physics.ss")
+
+;;;更新方法
+(define (obj更新 objls 移除谓词-actls 新增谓词-actls 谓词-act映射foo 谓词-actls)		
+  (cond ((null? objls) '())
+	;; hp归零的状态变化和飞机飞出屏幕的变化不同,关键在于副作用 2024年5月13日21:43:32
+	((新增/移除谓词-act映射 (car objls) 移除谓词-actls #t) (obj更新 (cdr objls) 移除谓词-actls 新增谓词-actls 谓词-act映射foo 谓词-actls))
+	;; ((新增/移除谓词-act映射 (car objls) 新增谓词-actls #t) (obj更新 (cdr objls) 移除谓词-actls 新增谓词-actls 谓词-act映射foo 谓词-actls))
 	(else
-	 (cadr 坐标))))
-;; (define (文本渲染测试 ttf-path ttf-render-fun render string fontsize r g b a)
-;;   (字串纹理渲染 (字串纹理-mk ttf-path ttf-render-fun render string fontsize r g b a) 0 0))
+	 (cons (谓词-act映射foo (car objls) 谓词-actls) ;先并后串或者相反的顺序问题 2024年5月13日10:11:28
+	       (obj更新 (cdr objls) 移除谓词-actls 新增谓词-actls 谓词-act映射foo 谓词-actls)))))
 
-;;; 纹理测试
-;; (define (纹理测试 render 纹理path)
-;;   (let* ((纹理 (s纹理-mk 纹理path render))
-;; 	 (渲染器 (s纹理-渲染器构造 纹理 0.0 0.0 纹理宽 纹理高)))
-;;     (lambda (m)
-;;       (cond ((sdl-event-quit?)
-;; 	     (s纹理-quit 纹理))
-;; 	    (else
-;; 	     (sdl-set-render-draw-color! render 0 0 0 #xFF)
-;; 	     (sdl-render-clear render)
-;; 	     ;; (sdl-render-copy-ex render (s纹理-纹理-get 纹理) (make-sdl-rect 0 0 20 19) (make-sdl-rect 500 500 20 19) 0.0 NULL SDL_FLIP_NONE) ;ok
-;; 	     (渲染器 '(500 300) 20 19 0.0 NULL SDL_FLIP_NONE)
-;; 	     (sdl-render-present render))))))
+(define (二元objls更新 objls 移除谓词-actls 新增谓词-actls 谓词-act映射foo 谓词-actls objls2)
+  ;; 考虑到碰撞检测造成的更新,需要扩张维度,传入构造函数会导致游戏循环增加开销 2024年9月9日21:30:33
+  (cond ((null? objls) '())
+	((新增/移除谓词-act映射 (car objls) 移除谓词-actls #t) ;这里显然是需要增加一个参数,而且修改这个结构了.... 2024年9月9日21:31:26
+	 (obj更新 (cdr objls) 移除谓词-actls 新增谓词-actls 谓词-act映射foo 谓词-actls objls2))
+	;; ((新增/移除谓词-act映射 (car objls) 新增谓词-actls #t) (obj更新 (cdr objls) 移除谓词-actls 新增谓词-actls 谓词-act映射foo 谓词-actls))
+	(else
+	 (cons (谓词-act映射foo (car objls) 谓词-actls) ;先并后串或者相反的顺序问题 2024年5月13日10:11:28
+	       (二元objls更新 (cdr objls) 移除谓词-actls 新增谓词-actls 谓词-act映射foo 谓词-actls)))))
 
-;; (define (事件测试 render)
-;;   (let ((R 0))
-;;     (lambda (m)
-;;       (cond ((sdl-event-quit?)
-;; 	     'over
-;; 	     )
- ;; 	    ((sdl-event-key-down? SDLK-UP) (set! R (+ R 1))))
-;;       (sdl-set-render-draw-color! render R 0 0 #xFF)
-;;       (sdl-render-clear render)
-;;       (sdl-render-present render))))
+(define (新增/移除谓词-act映射 obj 谓词-actls 存在t全部f)
+  (cond ((null? 谓词-actls) #f)
+	(else
+	 (or (and ((caar 谓词-actls) obj)	;只有在#t的情况下才产生副作用 2024年5月13日21:48:47
+		  (begin (map (lambda (foo)
+				(foo obj)) (cdar 谓词-actls))
+			 存在t全部f))			;返回#f,让or继续递归 2024年5月13日21:49:04 锤子,返回#t,直接跳出递归,只要成功一次移除判定就好 2024年5月14日15:45:42
+	     (新增/移除谓词-act映射 obj (cdr 谓词-actls) 存在t全部f)))))
+;;;
+(define (谓词-act串联映射 obj 谓词-actls)
+  (cond ((null? 谓词-actls) obj)
+	(else
+	 (谓词-act串联映射  (if ((caar 谓词-actls) obj)
+				(fold-left (lambda (obj foo)
+					     (foo obj)) obj (cdar 谓词-actls))
+				obj)
+			    (cdr 谓词-actls)))))
 
-;; (define (纹理测试-run)
-;;   (let ((game (game-mk (/ 1000 帧率) "纹理测试" SDL-WINDOWPOS-UNDEFINED SDL-WINDOWPOS-UNDEFINED  窗口宽 窗口高)))
-;;     (run-game game (纹理测试 (game-render-get game) 贪吃蛇素材path))
-;;     (game-quit game)))
-
-;; (define (事件测试-run)
-;;   (let ((game (game-mk (/ 1000 帧率) "事件测试" SDL-WINDOWPOS-UNDEFINED SDL-WINDOWPOS-UNDEFINED  窗口宽 窗口高)))
-;;     (run-game game (事件测试 (game-render-get game)))
-;;     (game-quit game)))
-
-
-;; (define (音效测试)
-;;   (let ((音频 (s音频-mk 音乐pathls 音效pathls 44100 AUDIO_S16LSB 2 2048 8)))
-;;     (lambda (m)
-;;       (音频-音效播放 音频))))
-
-;; (define (音频测试-run)
-;;   (let ((game (game-mk (/ 1000 帧率) "音效测试" SDL-WINDOWPOS-UNDEFINED SDL-WINDOWPOS-UNDEFINED  窗口宽 窗口高)))
-;;     (run-game game (音效测试))
-;;     (game-quit game)))
-
-;; (音频测试-run)
-
-(define (铰链拉动末端向量 坐标ls1 坐标ls2 铰链长度)
-  ;; 这里有点绕,本来应该是计算位移,然后给坐标ls2加上位移,让它移动过去的
-  ;; 但是因为移动的模值计算一步会麻烦,所以变成了把点1在计算出的方向上移动模的长度
-  ;; 这个位移同点2到点1的位移是反向的
-  (let* ((dx (- (坐标x 坐标ls2) (坐标x 坐标ls1)))
-	 (方向偏移 (if (> dx 0) 0 π))
-	 (1-2位移方向 (atan (容零除
-			     (- (坐标y 坐标ls2) (坐标y 坐标ls1))
-			     dx))))
-    (list (位置更新-极坐标 坐标ls1 铰链长度 (+ 1-2位移方向 方向偏移) 1)
-	  (+ 1-2位移方向 方向偏移))))
-
-(define (容零除 a b)
-  (if (= b 0)
-      (* a b +inf.0)
-      (/ a b)))
-
-(define (两点方向 始点坐标ls 终点坐标ls)
-  ;; 这里有点绕,本来应该是计算位移,然后给坐标ls2加上位移,让它移动过去的
-  ;; 但是因为移动的模值计算一步会麻烦,所以变成了把点1在计算出的方向上移动模的长度
-  ;; 这个位移同点2到点1的位移是反向的
-  (let* ((dx (- (坐标x 终点坐标ls) (坐标x 始点坐标ls)))
-	 (方向偏移 (if (> dx 0) 0 π)))
-    (+ 方向偏移 (atan (容零除
-		       (- (坐标y 终点坐标ls) (坐标y 始点坐标ls))
-		       dx)))
-    ))
-
-(define (极坐标->直角坐标 模 幅角)
-  (map (lambda (系数)
-	 (* 模 系数)) (list (cos 幅角) (sin 幅角))))
-
-(define (object->string format-string x)
-  (call-with-string-output-port
-   (lambda (p) (format p format-string x))))
-
-
-(define (charls->u8string charls)
-  (multibyte->string 'cp-acp (u8-list->bytevector (map char->integer charls))))
+(define (谓词-act并联映射 obj 谓词-actls)
+  (cond ((null? 谓词-actls) obj)
+	(else
+	 (when ((caar 谓词-actls) obj)
+	   (map (lambda (foo)
+		  (foo obj)) (cdar 谓词-actls)))
+	 (谓词-act并联映射 obj (cdr 谓词-actls)))))
