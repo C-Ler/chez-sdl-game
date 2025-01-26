@@ -17,7 +17,7 @@
 
 (define 我方子弹素材path "./res/image/bullet1.png")
 (define 子弹速度 1)
-(define 敌弹速度 0.405)
+(define 敌弹速度 0.105)
 
 (define 敌机素材path "./res/image/enemy1-l.png")
 (define 敌机速度 -0.5)
@@ -26,7 +26,7 @@
 (define 敌方子弹素材path "./res/image/enemy_bullet.png")
 (define 敌机普攻冷却时间基数 1200.0)
 (define 敌机普攻冷却时间区间 1200.0)
-(define 单位虚数 0+i)
+
 (define 敌机初始hp 1)
 (define 敌弹初始hp 1)
 
@@ -85,7 +85,7 @@
 (define 奖励点闪烁临界值 (* 帧率 2))
 
 (define 得分榜条目数 8)
-(define 得分榜标题坐标x (- (/ 窗口宽 2) 50))
+(define 窗口中轴线x (/ 窗口宽 2))
 (define 得分榜记录坐标y初始值 750)
 (define 得分榜记录坐标x (- (/ 窗口宽 2) 87))
 (define 得分记录y坐标步进值 75)
@@ -156,9 +156,7 @@
 	 (敌方子弹 '())
 	 (敌机更新计时器 (make-计时器))
 
-
-
-	 	 ;; 目前有一个方向上不用判断碰撞,还是应该搞个类型分派或者消息传递之类的. 2023年9月25日21:59:44
+	 ;; 目前有一个方向上不用判断碰撞,还是应该搞个类型分派或者消息传递之类的. 2023年9月25日21:59:44
 	 (碰撞foo? (lambda (子弹 敌机) (可移动对象碰撞? 子弹 敌机 我方子弹w 我方子弹h 敌机w 敌机h)))
 	 (我方-敌弹碰撞foo? (lambda (我方 敌弹) (可移动对象碰撞? 我方 敌弹 我方飞机w 我方飞机h 敌方子弹w 敌方子弹h)))
 
@@ -183,7 +181,7 @@
 
 	 (碎片lol '())
 	 (取用框ls (map list->sdl-rect (矩形阵列 (list 敌机w 敌机h) 碎片纹理分割数)))
-
+	 
 	 (奖励点ls '())
 	 (奖励点s纹理 (s纹理-mk render 奖励点path))
 	 (奖励点纹理信息 (s纹理-纹理信息get 奖励点s纹理))
@@ -198,17 +196,27 @@
 
 	 (当前分 0)
 	 (最高分 0)
-	 (sttf (sttf-管理 颜色位深))
-	 (whls (ttf-size-text-m (ttf-open-font 字体path 颜色位深) "0" 'utf8)) ;为了获取光标的宽和高 2024年6月20日20:51:28
+
+	 (字体 (创建字体 字体path 24 480 颜色位深))
+	 ;; (sttf (sttf管理 颜色位深))
+	 (whls (list (get-ASCII字符宽度 字体) (get-ASCII字符高度 字体))) ;为了获取光标的宽和高 2024年6月20日20:51:28
 
 	 (得分榜 (make-list 得分榜条目数 (list "匿名" 0)))
 	 (当前记录获得者 "匿名")
 	 (光标闪烁计数器 0)
 
 	 (游戏状态 '(标题状态))
-	 (当前渲染器 '())
+	 (当前渲染器 (lambda () '()))
 	 (状态切换计数器 (* 帧率 5))
-
+	 
+	 (按下开始str "按下enter玩游戏")
+	 (飞机大战str "飞机大战")
+	 (chezstr "Chezscheme")
+	 (得分榜str  "得分榜")
+	 (得分榜提示str "按下右侧Ctrl键继续")
+	 (录入提示str "恭喜获得最高分,请输入你的昵称:")
+	 (录入确认str "请敲回车键确认")
+	 	
 	 (奖励点移除谓词-actls (list (cons hp归零? (list (lambda (当前奖励点)
 							   (set! 当前分 (+ 当前分 1))
 							   (set! 最高分 (max 当前分 最高分))
@@ -307,7 +315,15 @@
 	 (我方子弹移除谓词-actls (list (cons 子弹清除?
 					     (list nothing))))
 
-	 (我方子弹谓词-actls (list (cons any?
+	 (我方子弹谓词-actls (list ;; (cons (lambda (我方子弹)
+				   ;; 	   (set! 敌方飞机 (obj更新 敌方飞机 敌机移除谓词-actls 敌机新增谓词-actls 谓词-act并联映射 敌机谓词-actls))
+				   ;; 	   ;; 单纯一个set! 是没有返回值的,子弹的赋值会遇到问题...2024年9月8日12:13:22
+				   ;; 	   (可移动对象碰撞? 我方子弹 敌方飞机)
+				   ;; 	   )
+				   ;; 	 (list (lambda (obj)
+				   ;; 		 ))
+				   ;; 	 )
+				   (cons any?
 					 (list (lambda (obj)
 						 (移动! obj 子弹速度 时间间隔))
 					       ))))
@@ -320,7 +336,8 @@
 				   ;; 	 (list (lambda (objls)
 				   ;; 		 '()))
 				   ;; 	 )
-				   ))
+			      ))
+	 
 	 (星组谓词-actls (list (cons any?
 				     (list (lambda (objls)
 					     (remp 抵达屏幕左端? objls))
@@ -360,20 +377,19 @@
 									     星等数)
 					   ))))
 
-		    (set! 当前渲染器
-			  (渲染器 (lambda ()
-				    (背景滚动渲染2 render 背景s纹理 背景)
-				    (when (< (mod 状态切换计数器 40) 20)
-				      (sttf字符渲染进矩形区域 sttf render 字体path "按下enter玩游戏" 640 820  #xFB #xDA #x41 '居中 1160 0.0 NULL SDL_FLIP_NONE))
-				    (渲染星组ls render 星组lol 星等ls)
-				    (map (lambda (str x坐标 y坐标)
-					   (sttf字符渲染进矩形区域 sttf render 字体path str x坐标 y坐标 #xFB #xDA #x41 '居中 1160 0.0 NULL SDL_FLIP_NONE))
-					 (list (format "飞机大战") (format "Chezscheme"))
-					 (list 640 640)
-					 (list 200 300)
-					 ))
-				  render 96 128 255 255))
-		
+		    (set! 当前渲染器 
+			  (渲染器构造 render 96 128 255 255 (背景滚动渲染2 render 背景s纹理 背景)
+				      (when (< (mod 状态切换计数器 40) 20)
+					(矩形区域渲染字符串 字体 render 按下开始str 窗口中轴线x 820  #xFB #xDA #x41 0
+							    '居中 400 +inf.0 0 0 'x 'x 1 1 0.0 NULL SDL_FLIP_NONE))
+				      (渲染星组ls render 星组lol 星等ls)
+				      (map (lambda (str y坐标)
+					     (矩形区域渲染字符串 字体 render str 窗口中轴线x y坐标 #xFB #xDA #x41 0
+								 '居中 460 +inf.0 0 0 'x 'x 1 1 0.0 NULL SDL_FLIP_NONE))
+					   (list 飞机大战str chezstr)
+					   (list 200 300)
+					   )))
+		    
 		    )))
 	   (cons
 	    (lambda (状态) (equal? 状态 '主要状态))
@@ -425,42 +441,38 @@
 									     星等数)
 					   ))))
 
-		          
-		    (set! 当前渲染器 (渲染器 (lambda ()
-					       (背景滚动渲染2 render 背景s纹理 背景)
-					       (渲染星组ls render 星组lol 星等ls)
-					       
-					       (when (not (null? 我方飞机)) ;一样的风格,只是从发出音效变成了渲染图像 2024年5月17日17:21:00
-						 (s纹理-按纹理规格blit render 我方飞机s纹理 (坐标x (get-坐标 (car 我方飞机))) (坐标y (get-坐标 (car 我方飞机)))))
-					       
-					       (map (lambda (objls s纹理)
-						      (同纹理多实体渲染 (map get-坐标 objls) render s纹理))
-						    (list 敌方飞机 敌方子弹 我方子弹 ;; 奖励点ls
-							  )
-						    (list 敌机s纹理 敌方子弹s纹理 我方子弹s纹理 ;; 奖励点s纹理
-							  ))
+		    (set! 当前渲染器 (渲染器构造 render 96 128 255 255
+						 (背景滚动渲染2 render 背景s纹理 背景)
+						 (渲染星组ls render 星组lol 星等ls)
 
-					       (map (lambda (obj)
-						      (when (or (> (get-hp obj) 奖励点闪烁临界值)
-								(< (mod (get-hp obj) 12) 6))
-							(let ((坐标 (get-坐标 obj)))
-							  (s纹理-按纹理规格blit render 奖励点s纹理 (坐标x 坐标) (坐标y 坐标)))))
-						    奖励点ls)
-					       
-					       (爆炸特效ls渲染 render 爆炸特效ls 爆炸特效s纹理)
-					       (碎片lol渲染 render 碎片lol 敌机s纹理 取用框ls)
-					       (map (lambda (str x坐标)
-						      (sttf字符渲染进矩形区域 sttf render 字体path str x坐标 0 255 255 255 '左对齐 1160 0.0 NULL SDL_FLIP_NONE))
-						    (list (format "当前分:~3,'0d" 当前分) (format "最高分:~3,'0d" 最高分)) ;最高分的字符串宽度莫名其妙在1160... 2024年6月25日22:17:43
-						    (list 20 1000)
-						    )
-					       
-					       )
-					     
-					     render 96 128 255 255))
+						 (when (not (null? 我方飞机)) ;一样的风格,只是从发出音效变成了渲染图像 2024年5月17日17:21:00
+						   (s纹理-按纹理规格blit render 我方飞机s纹理 (坐标x (get-坐标 (car 我方飞机))) (坐标y (get-坐标 (car 我方飞机)))))
+						 
+						 (map (lambda (objls s纹理)
+							(同纹理多实体渲染 (map get-坐标 objls) render s纹理))
+						      (list 敌方飞机 敌方子弹 我方子弹 ;; 奖励点ls
+							    )
+						      (list 敌机s纹理 敌方子弹s纹理 我方子弹s纹理 ;; 奖励点s纹理
+							    ))
+
+						 (map (lambda (obj)
+							(when (or (> (get-hp obj) 奖励点闪烁临界值)
+								  (< (mod (get-hp obj) 12) 6))
+							  (let ((坐标 (get-坐标 obj)))
+							    (s纹理-按纹理规格blit render 奖励点s纹理 (坐标x 坐标) (坐标y 坐标)))))
+						      奖励点ls)
+						 
+						 (爆炸特效ls渲染 render 爆炸特效ls 爆炸特效s纹理)
+						 (碎片lol渲染 render 碎片lol 敌机s纹理 取用框ls)
+						 (map (lambda (str x坐标)
+							(矩形区域渲染字符串 字体 render str x坐标 0 255 255 255 0 '左对齐 460 +inf.0 0 0 'x 'x 1 1 0.0 NULL SDL_FLIP_NONE))
+						      (list (format "当前分:~3,'0d" 当前分) (format "最高分:~3,'0d" 最高分)) ;最高分的字符串宽度莫名其妙在1160... 2024年6月25日22:17:43
+						      (list 20 1000)
+						      )
+						 ))
 		    
-		    )
-		  ))
+		    
+		  )))
 	   (cons
 	    (lambda (状态) (and (equal? 状态 '结束状态) (>= 当前分 (得分榜记录分数-get (last 得分榜))) (not (member (list 当前记录获得者 当前分) 得分榜)))) ;当当前分>=最低分时候录入记录 2024年6月20日19:42:22
 	    (list (lambda (当前状态)
@@ -469,11 +481,13 @@
 		    (mix-pause-music)
 		    (cond ((sdl-event-text-input?)
 			   (set! 当前记录获得者 (string-append 当前记录获得者 (charls->u8string (sdl-event-text-input-text))))
+			   (字体扩展字符! 字体 (string->list 当前记录获得者) render)
 			   )
 			  ((sdl-event-key-down? ;; 退格键的处理,chez-sdl的代码这里有问题,值不对,#\b应该是#\backspace 2024年6月20日19:48:51 
 			    SDLK-BACKSPACE
 			    )
-			   (set! 当前记录获得者 (substring 当前记录获得者 0 (- (string-length 当前记录获得者) 1)))
+			   (let ((串长 (string-length 当前记录获得者)))
+			     (set! 当前记录获得者 (if (= 串长 0) "" (string-drop-right 当前记录获得者 1))))
 			   )
 			  ((sdl-event-key-down? SDLK-RETURN)
 			   (set! 得分榜 (得分榜更新 得分榜 (list 当前记录获得者 当前分)))
@@ -482,23 +496,21 @@
 			  (else
 			   '()))
 		    (set! 光标闪烁计数器 (+ 1 光标闪烁计数器))
-		    (set! 当前渲染器 (渲染器
-				      (lambda ()
-					
-					(sttf字符渲染进矩形区域 sttf render 字体path "恭喜获得最高分,请输入你的昵称:" 得分榜标题坐标x 0 255 255 255 '居中 900 0.0 NULL SDL_FLIP_NONE)
-					
-					(let ((xyls (sttf字符渲染进矩形区域 sttf render 字体path 当前记录获得者 得分榜标题坐标x 100 255 255 255 '居中 900 0.0 NULL SDL_FLIP_NONE)))
-					  ;; 光标的加入
-					  (cond ((< 光标闪烁计数器 (/ 帧率 2))
-						 (begin
-						   (sdl-set-render-draw-color! render 0 255 0 122) ;; green
-						   (sdl-render-fill-rect render (apply make-sdl-rect (append xyls whls)))))
-						((> 光标闪烁计数器 帧率) (set! 光标闪烁计数器 0))))
+		    (set! 当前渲染器 (渲染器构造 render 0 0 0 255
+						 (矩形区域渲染字符串 字体 render 录入提示str 窗口中轴线x 0 255 255 255 0 '居中 600 +inf.0 0 0 'x 'x 1 1 0.0 NULL SDL_FLIP_NONE)
+						 
+						 (let ((xyls (矩形区域渲染字符串 字体 render 当前记录获得者 窗口中轴线x 100 255 255 255 0 '居中 600 +inf.0 0 0 'x 'x 1 1 0.0 NULL SDL_FLIP_NONE)))
+						   ;; 光标的加入
+						   (cond ((< 光标闪烁计数器 (/ 帧率 2))
+							  (begin
+							    (sdl-set-render-draw-color! render 0 255 0 122) ;; green
+							    (sdl-render-fill-rect render (apply make-sdl-rect (append xyls whls)))))
+							 ((> 光标闪烁计数器 帧率) (set! 光标闪烁计数器 0))))
 
-					(sttf字符渲染进矩形区域 sttf render 字体path "请敲回车键确认" 得分榜标题坐标x (- 窗口高 200) 255 255 255 '居中 900 0.0 NULL SDL_FLIP_NONE)
-					
-					)
-				      render 0 0 0 255))
+						 (矩形区域渲染字符串 字体 render 录入确认str 窗口中轴线x (- 窗口高 200) 255 255 255 0 '居中 600 +inf.0 0 0 'x 'x 1 1 0.0 NULL SDL_FLIP_NONE)
+						 
+						 
+						 ))
 		    
 		    )))
 	   (cons
@@ -518,30 +530,31 @@
 			  (else
 			   (set! 状态切换计数器 (- 状态切换计数器 1)))
 			  )
-		    (set! 当前渲染器 (渲染器
-				      (lambda ()
-					(sttf字符渲染进矩形区域 sttf render 字体path "得分榜" 得分榜标题坐标x 0 255 255 255 '居中 900 0.0 NULL SDL_FLIP_NONE) ;渲染标题 2024年6月3日11:17:34
-					(let loop ((个数 (length 得分榜))
-						   (剩余记录 得分榜)
-						   (y坐标 得分榜记录坐标y初始值))
-					  (cond ((= 个数 0) '())
-						(else
-						 (let* ((当前记录 (car 剩余记录))
-							(记录的分数 (cadr 当前记录)))
-						   (sttf字符渲染进矩形区域 sttf render 字体path (format "#~s .................. ~3,'0d" (car 当前记录) 记录的分数)
-									   得分榜记录坐标x y坐标 255 255 (if (equal? 当前记录 (list 当前记录获得者 当前分))
-													     0
-													     255) '居中 1000 0.0 NULL SDL_FLIP_NONE)
-						   )
-						 (loop (- 个数 1)
-						       (cdr 剩余记录)
-						       (- y坐标 得分记录y坐标步进值)))))
-					
-					(sttf字符渲染进矩形区域 sttf render 字体path "按下右侧Ctrl键继续" 得分榜提示坐标x初始值 得分榜提示坐标y初始值
-								255 255 255 '居中 900 0.0 NULL SDL_FLIP_NONE) ;渲染标题 2024年6月3日11:17:34
-					
-					)
-				      render 0 0 0 255))
+		    
+		    (set! 当前渲染器 (渲染器构造 render 0 0 0 255
+						 (矩形区域渲染字符串 字体 render 得分榜str 窗口中轴线x 40  #xFB #xDA #x41 0
+							    '居中 400 +inf.0 0 0 'x 'x 1 1 0.0 NULL SDL_FLIP_NONE)
+						 (let loop ((个数 (length 得分榜))
+							    (剩余记录 得分榜)
+							    (y坐标 得分榜记录坐标y初始值))
+						   (cond ((= 个数 0) '())
+							 (else
+							  (let* ((当前记录 (car 剩余记录))
+								 (记录的分数 (cadr 当前记录)))
+							    (矩形区域渲染字符串 字体 render (format "#~s .................. ~3,'0d" (car 当前记录) 记录的分数)
+										    窗口中轴线x y坐标 255 255 (if (equal? 当前记录 (list 当前记录获得者 当前分))
+														      0
+														      255) 0 '居中 900 +inf.0 0 0 'x 'x 1 1 0.0 NULL SDL_FLIP_NONE)
+							    )
+							  (loop (- 个数 1)
+								(cdr 剩余记录)
+								(- y坐标 得分记录y坐标步进值)))))
+						 
+						 (矩形区域渲染字符串 字体 render  得分榜提示str 窗口中轴线x 820  #xFB #xDA #x41 0
+								     '居中 400 +inf.0 0 0 'x 'x 1 1 0.0 NULL SDL_FLIP_NONE) ;渲染标题 2024年6月3日11:17:34
+						 
+						 
+						 ))
 		    )
 		  ))
 	   (cons
@@ -561,35 +574,41 @@
 		    )
 		  )
 	    )
+	   
 	   )
-	  )
-	 )
+	  ))
     
     (启动 敌机更新计时器)		;不需要每次循环都重启的计时器  2024年3月21日20:02:55
     (mix-volume-music 33)
     (mix-play-music bgm -1)
-    
-    (sttf-字体字符图集初始化 sttf 字体path (list ASCII码区间 中文区间) render 32)
+    (测试输出 (list 我方飞机h 我方飞机w))
+
+    (字体扩展字符! 字体 (list->set (string->list (string-append 按下开始str 飞机大战str chezstr 得分榜str 得分榜提示str 录入提示str 录入确认str "0123456789"
+								"当前分:" "最高#\". " 当前记录获得者)))
+		   render)
+    ;; (sttf-字体字符图集初始化 sttf 字体path (list ASCII码区间 中文区间) render 32)
         
     (lambda (something)
-      
+      ;; 固定时间间隔,追逐实际时间的游戏循环模式,目前这种形式下,如果每次更新时间都太长,会导致永远追不上实际时间 2024年8月9日22:50:04
       (set! 脉冲间隔 (获取时间戳 计时器0)) ;大的离谱..... 2024年7月29日01:18:26
-      (启动 计时器0)	;重置计时器,下次获取时间坐标时就是时间间隔
+      ;; (set! 时间间隔 (获取时间戳 计时器0))
+      (启动 计时器0) 	;重置计时器,下次获取时间坐标时就是时间间隔
       (set! 累积时间间隔 (+ 脉冲间隔 累积时间间隔))
       (let loop ((lag 累积时间间隔))
-	(when (>= lag 时间间隔)
-	  (测试输出 (list '当前累积时间 (floor lag)))
-	  (obj更新 游戏状态 '() '() 谓词-act并联映射 游戏状态谓词-actls)
-	  (loop (- lag 时间间隔)))
-	(set! 累积时间间隔 lag))
-      (测试输出 (list '累积时间 累积时间间隔))
-      (测试输出 (list '脉冲间隔 脉冲间隔))
-      当前渲染器			;这个过程需要返回一个渲染器
+	(if (>= lag 时间间隔)
+	    (begin
+	      ;; (测试输出 (list '当前累积时间 (floor lag)))
+	      (obj更新 游戏状态 '() '() 谓词-act并联映射 游戏状态谓词-actls)
+	      (loop (- lag 时间间隔)))
+	    (set! 累积时间间隔 lag)))
+      
+      ;; (obj更新 游戏状态 '() '() 谓词-act并联映射 游戏状态谓词-actls)
+      ;; (测试输出 (list '累积时间 累积时间间隔))
+      ;; (测试输出 (list '脉冲间隔 脉冲间隔))
+      (当前渲染器)
       )))
 
-(define 坐标x real-part)
 
-(define 坐标y imag-part)
 
 (define (事件->角度)
   ;; 原来这部分重复度太高,其实只需要传入角度,根据事件返回新的角度就OK,速度表示使用极坐标,模值与角度得到dx与dy  2023年3月30日22:31:54
@@ -632,10 +651,10 @@
   (* 我方飞机移动速度 (事件->角度))
   )
 
-(define gobj:hp
-  (make-property 'hp
-		 'predicate real?
-		 'default 1))
+(define-sdf-property gobj:hp
+  hp
+  'predicate real?
+  'default 1)
 
 (define-type 可移动可破坏obj (坐标对象?) (gobj:hp))
 
@@ -768,10 +787,10 @@
   
   )
 
-(define gobj:冷却时间计时器
-  (make-property '冷却时间
-		 'predicate real?
-		 'default 1))
+(define-sdf-property gobj:冷却时间计时器
+  冷却时间
+  'predicate real?
+  'default 1)
 
 (define-type 可普攻对象 (可移动可破坏obj?) (gobj:冷却时间计时器))
 
@@ -779,11 +798,9 @@
 	      (let ((坐标 (get-坐标 obj)))
 		(printf "坐标:~d ~d HP:~d 普攻冷却时间:~d ~%" (坐标x 坐标) (坐标y 坐标) (get-hp obj) (get-普攻冷却时间 obj))))
 
-(define get-普攻冷却时间 
-  (property-getter  gobj:冷却时间计时器 可普攻对象?))
+(define get-普攻冷却时间 get-冷却时间)
 
-(define set-普攻冷却时间!
-  (property-setter gobj:冷却时间计时器 可普攻对象? real?))
+(define set-普攻冷却时间! set-冷却时间!)
 
 (define (创建敌机 坐标c hp 普攻冷却时间)
   (make-可普攻对象 '坐标 坐标c 'hp hp '冷却时间 普攻冷却时间))
@@ -794,10 +811,10 @@
 (define (敌机计时器状态更新! 敌机 时间间隔)
   (set-普攻冷却时间! 敌机 (- (get-普攻冷却时间 敌机) 时间间隔)))
 
-(define gobj:速度c
-  (make-property '速度
-		 'predicate complex?
-		 'default 1))
+(define-sdf-property gobj:速度c
+  速度
+  'predicate complex?
+  'default 1)
 
 (define-type 速度独立对象 (坐标对象?) (gobj:速度c))
 
@@ -919,16 +936,10 @@
        ))
 
 ;;; 爆炸特效
-(define (random-in negative positive randomfoo)
-  (- (randomfoo positive) (randomfoo(- negative))))
-
-(define (random-complex c)	      	;实部和虚部都必须是正数...2024年4月16日12:40:13
-  (+ (random (real-part c)) (* 单位虚数 (random (imag-part c)))))
-
-(define gobj:颜色枚举索引
-  (make-property '颜色枚举索引
-                 'predicate integer?
-                 'default-value 0)
+(define-sdf-property gobj:颜色枚举索引
+  颜色枚举索引
+  'predicate integer?
+  'default-value 0
   )
 
 (define-type 带颜色可破坏速度独立对象 (可破坏速度独立对象?) (gobj:颜色枚举索引))
@@ -946,47 +957,11 @@
 	  (else
 	   (loop (- n 1)
 		 (cons (创建爆炸特效 参照坐标c) acc))))))
-;;;
-(define (obj更新 objls 移除谓词-actls 新增谓词-actls 谓词-act映射foo 谓词-actls)		
-  (cond ((null? objls) '())
-	;; hp归零的状态变化和飞机飞出屏幕的变化不同,关键在于副作用 2024年5月13日21:43:32
-	((新增/移除谓词-act映射 (car objls) 移除谓词-actls #t) (obj更新 (cdr objls) 移除谓词-actls 新增谓词-actls 谓词-act映射foo 谓词-actls))
-	;; ((新增/移除谓词-act映射 (car objls) 新增谓词-actls #t) (obj更新 (cdr objls) 移除谓词-actls 新增谓词-actls 谓词-act映射foo 谓词-actls))
-	(else
-	 (cons (谓词-act映射foo (car objls) 谓词-actls) ;先并后串或者相反的顺序问题 2024年5月13日10:11:28
-	       (obj更新 (cdr objls) 移除谓词-actls 新增谓词-actls 谓词-act映射foo 谓词-actls)))))
-
-(define (新增/移除谓词-act映射 obj 谓词-actls 存在t全部f)
-  (cond ((null? 谓词-actls) #f)
-	(else
-	 (or (and ((caar 谓词-actls) obj)	;只有在#t的情况下才产生副作用 2024年5月13日21:48:47
-		  (begin (map (lambda (foo)
-				(foo obj)) (cdar 谓词-actls))
-			 存在t全部f))			;返回#f,让or继续递归 2024年5月13日21:49:04 锤子,返回#t,直接跳出递归,只要成功一次移除判定就好 2024年5月14日15:45:42
-	     (新增/移除谓词-act映射 obj (cdr 谓词-actls) 存在t全部f)))))
-;;;
-
-(define (谓词-act串联映射 obj 谓词-actls)
-  (cond ((null? 谓词-actls) obj)
-	(else
-	 (谓词-act串联映射  (if ((caar 谓词-actls) obj)
-				(fold-left (lambda (obj foo)
-					     (foo obj)) obj (cdar 谓词-actls))
-				obj)
-			    (cdr 谓词-actls)))))
-
-(define (谓词-act并联映射 obj 谓词-actls)
-  (cond ((null? 谓词-actls) obj)
-	(else
-	 (when ((caar 谓词-actls) obj)
-	   (map (lambda (foo)
-		  (foo obj)) (cdar 谓词-actls)))
-	 (谓词-act并联映射 obj (cdr 谓词-actls)))))
 
 (定义匹配度优先广义过程 移动消散! 4 (constant-generic-procedure-handler #f))
 (广义过程扩展 移动消散! ((可破坏速度独立对象? obj) (complex? 速度) (real? △h) (real? t))
-	      (begin (移动! obj (get-速度 obj) t)
-		     (hp减少! obj (* △h t))))
+	      (移动! obj (get-速度 obj) t)
+	      (hp减少! obj (* △h t)))
 
 (define (objls移动消散! objls 消散率 时间间隔)
   (map (lambda (obj)
@@ -1083,11 +1058,6 @@
 			'hp 奖励点生命初始值
 			'速度 速度))
 
-(define (x镜像 c)
-  (- (real-part c) (* 单位虚数 (imag-part c))))
-
-(define (y镜像 c)
-  (- (* 单位虚数 (imag-part c)) (real-part c)))
 
 (define 得分榜记录分数-get cadr)
 (define 得分榜首条记录-get car)
