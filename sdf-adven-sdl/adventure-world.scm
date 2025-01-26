@@ -23,7 +23,7 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;;; An adventure game at MIT
 
-#| load 本文件 (start-adventure '小明) (go 'west) (go 'east)
+#| load 本文件 (start-adventure '小明) (go 'west) (go 'east) 
 course-6-frosh picks up course-6-froshbag
 Exception in error:wrong-type-argument: wrong argument type, expected #[#{simple-tag lc8mwm3c886i9cm630dumuiew-62} #[#{<tag-shared> lc8mwm3c886i9cm630dumuiew-63} list #<procedure list?> #<procedure constructor at tagging.scm:2680> #<procedure at tagging.scm:2989> #<procedure at collections.scm:1254>]]and caller value: with irritants (#<void> #<void>)
 
@@ -63,6 +63,68 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 |#
 (load "D://code//aim4//game-uk//l-engine-2.ss")
 
+;;; 方便替换成其它语言的
+(define 说str "说:")
+(define 的str "的")
+(define 进入str "进入了")
+(define 嗨str "嗨,")
+(define 痛苦嚎叫str "啊啊!")
+(define 无法承受的打击str "下打击我受不了!")
+(define 人物挂掉的旁白 '("一声撕心裂肺,透彻心扉的哀嚎回荡在这里..."))
+(define 房管的训诫台词 '("怎么还不睡觉?!"
+			 "所有人都回自己寝室!"))
+(define 房管的自言自语 '("哼哼,等我抓到那些捣蛋鬼..."))
+(define 房管的认怂台词 '("这次就先放过你们..."))
+
+(define 回家str "回去了")
+
+(define 巨魔肚子咕噜声 "肚子咕噜咕噜声")
+
+(define 咬了str "咬了")
+(define 一口str "一口")
+
+(define 你处在str "你处在")
+(define 你的包里有str "你的包里有:")
+(define 你在这能看到str "你在这能看到:")
+(define 你见到了str "你见到了:")
+(define 你可以从这些地方离开str "你可以从这些方向离开:")
+(define 无法离开提示 '("没有这个方向的出口..."
+                       "你已经见马克思了!"))
+(define 从str "从")
+(define 离开str "离开")
+(define 不可移动提示 "是不可移动的")
+(define 正持有提示 "正持有")
+
+(define-syntax 符号->定义为符号的文本
+  (lambda (x)
+    (syntax-case x ()
+      [(_ (后缀) 符号 ...)
+       (with-syntax ([(定义的符号 ...) (map (lambda (x)
+					      (gen-id #'后缀 x #'后缀))
+					    #'(符号 ...))]
+		     [(字符串 ...) (map (lambda (x)
+					  (datum->syntax #'后缀 (symbol->string (syntax->datum x))))
+					#'(符号 ...))])
+	 #'(begin (define 定义的符号 字符串)
+		  ...))
+       ]
+      [(_ (前缀 后缀) 符号 ...)
+       (with-syntax ([(定义的符号 ...) (map (lambda (x)
+					      (gen-id #'后缀 #'前缀 x #'后缀))
+					    #'(符号 ...))]
+		     [(字符串 ...) (map (lambda (x)
+					  (datum->syntax #'后缀 (symbol->string (syntax->datum x))))
+					#'(符号 ...))])
+	 #'(begin (define 定义的符号 字符串)
+		  ...))
+       ])))
+
+(符号->定义为符号的文本 (提示- str) 给了 把 从 拿走了 并 我很失望 哇哦 你从哪搞到的? 捡起了 谢了 伙计! 扔掉了
+			你干嘛! 已经 在 了 的 到 没有 出口 你 无法 强迫 移动 包 里 有 是 空)
+
+(符号->定义为符号的文本 (str) 这 叫 让我很难受 伤害值) 
+
+;;; 我受够了,可以定义个代码,直接把list中的符号转成string,然后构造一个文件
 ;;; Misc
 ;;; 冒险游戏需要用到的其它东西
 (define (direction? object)
@@ -105,7 +167,7 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 (define-sdf-property object:description description
   'default-to-property object:name)	;这个十分特殊,用宏展开和别的不一样,不需要加'号
 
-(define-type object ()  (object:name object:description))
+(define-type object () (object:name object:description))
 
 (define (find-object-by-name name objects)
   (find (lambda (object)
@@ -155,7 +217,7 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
       (send-message! message debug-output)))
 
 (define (say! person message)
-  (narrate! (append (list person "says:") message)
+  (narrate! (append (list person 说str) message)
             person))
 
 (define (announce! message)
@@ -190,11 +252,21 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 
 (define (possessive person)
   (string-append (display-to-string (get-name person))
-                 "'s"))
+                 的str))
 
 ;;; Screen
 
-(define-sdf-property gobj:消息板 消息板str 'predicate 游戏字符串?)
+(define 白色 (make-sdl-color 255 255 255 0))
+
+(define-sdf-property gobj:color
+  color
+  'predicate sdl-color?
+  'default-value 白色 ;这里引用了共享的部分 2024年9月20日16:40:39
+  )
+
+(define-type UI类型 ()
+  (gobj:color)		;可以想办法让这个render的默认值变成game的render		
+  )
 
 (define-sdf-property gobj:rect
   rect
@@ -202,34 +274,86 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
   'default-value (make-sdl-rect 0 0 0 0)
   )
 
-(define-type 消息板 (object?) (gobj:消息板 gobj:rect sdl:renderer))
+(define-type 含rectUI (UI类型?)
+  (gobj:rect)
+  )
+
+(define (构造空游戏字符串)
+  (创建字符串-ctcr ""))
+
+(define-sdf-property UI:显示的文本
+  显示的文本
+  'predicate 游戏字符串?
+  'default-supplier 构造空游戏字符串
+  )
+
+(define-type 含文本UI (含rectUI?)
+  (UI:显示的文本)
+  )
+
+(定义匹配度优先广义过程 set-仅字符串! 2 (lambda (a b) (error 'set-仅字符串 "无法设置a的字符串为b" (a b))))
+
+(广义过程扩展 set-仅字符串! ((含文本UI? 含文本UI实例) (string? str))
+	      (set-字符串扩展字符-ctcr! (get-显示的文本 含文本UI实例) str))
+
+(广义过程扩展 set-仅字符串! ((含文本UI? 含文本UI实例) (symbol? str))
+	      (set-仅字符串! 含文本UI实例 (symbol->string str))
+	      )
+
+(define-type 文本-矩形UI (含文本UI?) ()) ;重新求值之后才能将这个变成UI类型的子类,但是get-color确能用....
+
+(define-sdf-property UI:log
+  log
+  'predicate list?
+  'default-value '()
+  )
+
+(define-sdf-property UI:消息板最后一行在log的位置
+  消息板最后一行在log的位置
+  'predicate integer?
+  'default-value 0
+  )
+
+(define-sdf-property UI:消息板每页字符串数
+  消息板每页字符串数
+  'predicate integer?
+  'default-value 27
+  )
+
+(define-type 消息板 (含文本UI?) (UI:log UI:消息板最后一行在log的位置 UI:消息板每页字符串数))
 
 (define output-port-or-消息板? (disjoin output-port? 消息板?))
 
 (define (item->msgstr item)
+  ;; string-append 
   (cond	((string? item) item)
 	((object? item)
 	 (symbol->string (get-name item)))
 	((symbol? item)
 	 (symbol->string item))
 	((number? item) (number->string item))
-	(else (error 'item->msgstr "is not a message" item))))
+	((含文本UI? item) (get-显示的文本 item))
+	(else (error 'item->msgstr "is not a message" item)))
+  ;; ","
+  )
+
+(define (消息板字符串更新! 消息板)
+  (let ((字符串数 (get-消息板最后一行在log的位置 消息板)))
+    (set-字符串扩展字符-ctcr! (get-显示的文本 消息板) (apply string-append
+							     (切片 (get-log 消息板) (max 0 (- 字符串数 (get-消息板每页字符串数 消息板)))
+								   字符串数)))))
 
 (广义过程扩展 display-message ((message? message) (消息板? 消息板))
-	      ;; (测试输出 message)
-	      ;; (测试输出 (get-字符串 (get-消息板str 消息板)))
-	      (set-字符串扩展字符! (get-消息板str 消息板) (string-append (get-字符串 (get-消息板str 消息板))
-									 "
+	      (set-log! 消息板 (append (get-log 消息板) (list (string-append "
 "
-									 (item->msgstr (car message))
-									 (apply string-append (map (lambda (item)
-												     (string-append " " (item->msgstr item)))
-												   (cdr message))
-										))
-				   (get-renderer 消息板)))
-
+							       (item->msgstr (car message))
+							       (apply string-append (map (lambda (item)
+											   (item->msgstr item))
+											 (cdr message))
+								      )))))
+	      (set-消息板最后一行在log的位置! 消息板 (length (get-log 消息板)))
+	      (消息板字符串更新! 消息板))
 ;;; 原screen
-
 (define-sdf-property screenport port 'predicate output-port-or-消息板? ;; output-port?,原来的只能支持 current-output-port
   'default-supplier current-output-port)	;在需要显示的情况下,设置为消息板
 
@@ -243,7 +367,6 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
     (display-message message (get-port screen))))
 
 ;;; Clock
-
 (define (make-clock)			;封装了clock record的make
   (%make-clock 0 '()))
 
@@ -269,9 +392,7 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
   (for-each clock-tick! ;同时给每个随时间改变的对象clock-tick! 随时钟更新状态 2024年7月26日23:29:37
             (clock-things clock)))
 
-(define clock-tick!
-  (chaining-generic-procedure 'clock-tick! 1 ;链式广义过程 2024年7月26日23:30:00
-    (constant-generic-procedure-handler #f)))
+(定义链式广义过程 clock-tick! 1 (constant-generic-procedure-handler #f))
 
 (define (define-clock-handler type action) ;如果一个type有多个action该怎么办? 2024年5月11日19:58:16
   ;; 这个action是个过程,被封装到handler里面,多个action完全可以合并成一个 2024年7月26日23:39:06
@@ -281,9 +402,7 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
       (super object)
       (action object))))
 
-
 ;;; Object types for Adventure game
-
 (define-sdf-property thing:location			;property
   location
   'predicate (lambda (x) (container? x)))
@@ -412,9 +531,7 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 
 (define-type mobile-thing (thing?) (mobile-thing:origin))
 
-(define enter-place!
-  (chaining-generic-procedure 'enter-place! 1
-    (constant-generic-procedure-handler #f)))
+(定义链式广义过程 enter-place! 1 (constant-generic-procedure-handler #f))
 
 (define leave-place!
   (most-specific-generic-procedure 'leave-place! 1
@@ -429,13 +546,36 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 (define-sdf-property persobag
   ;; 默认值是(lambda () (make-bag 'name 'bag)的返回值,这个参数传入时不会被求值... 2024年8月11日17:34:20
   bag
-  'predicate (lambda (x) (bag? x))
+  'predicate bag?
   'default-supplier
   (lambda () (make-bag 'name ;; (get-name obj)
 		       'bag		;如果要实现1月的期望,得修改<property>record,增加关键字,同时还要调整其他机制. 2024年10月14日20:30:54
 		       )))	;所有人物的bag都特么叫my-bag,得想个办法,改成xx的bag这样  2024年1月28日18:17:47
 
-(define-type person (mobile-thing?) (persohealth persobag))
+;;; 扩展后的person,支持了普通攻击的互动,人物速度+人物朝向+冷却时间 2024年11月1日21:02:15
+;;; 对应也需要能获取时间间隔
+(define-sdf-property 人物速度
+  速度
+  'predicate complex?
+  'default-value 0)
+
+(define-sdf-property 人物朝向
+  朝向
+  'predicate complex?
+  'default-value 0)
+
+(define-sdf-property 人物普攻冷却时间
+  普攻冷却时间
+  'predicate real?
+  'default-value 500)
+
+(define-sdf-property 人物当前普攻冷却时间
+  当前普攻冷却时间
+  'predicate real?
+  'default-value 0)
+
+(define-type person (mobile-thing?) (persohealth persobag 人物速度 人物朝向 人物普攻冷却时间 人物当前普攻冷却时间))
+
 (define-generic-procedure-handler set-up! (match-args person?)
   (lambda (super person)
     (super person)
@@ -443,18 +583,16 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 
 (define-generic-procedure-handler get-things (match-args person?)
   (lambda (person)			
-    (get-things (get-bag person))	;这个表达式的定义没找到,没见到定义只见到扩展 2024年10月23日15:35:15
+    (get-things (get-bag person))	;这个表达式的定义没找到,没见到定义只见到扩展 2024年10月23日15:35:15 其实是容器带的....
     ))
 
-(define-generic-procedure-handler enter-place!
-  (match-args person?)
-  (lambda (super person)
-    (super person)
-    (narrate! (list person "enters" (get-location person))
-              person)
-    (let ((people (people-here person)))
-      (if (pair? people)
-          (say! person (cons "Hi" people))))))
+(广义过程扩展 enter-place! super ((person? person))
+	      (super person)
+	      (narrate! (list person 进入str (get-location person))
+			person)
+	      (let ((people (people-here person)))
+		(if (pair? people)
+		    (say! person (cons 嗨str people)))))
 
 (define-generic-procedure-handler send-message!	;缺失了这个,导致非玩家角色行动后的各种旁白,tell!都会匹配到默认gp-handler,接着抛异常 2024年1月22日21:44:05
   (match-args message? person?)
@@ -484,7 +622,7 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 
 (define (suffer! hits person)
   (guarantee positive? hits)
-  (say! person (list "Ouch!" hits "hits is more than I want!"))
+  (say! person (list 痛苦嚎叫str hits 无法承受的打击str))
   (set-health! person (- (get-health person) hits))
   (if (< (get-health person) 1)
       (die! person)))
@@ -494,7 +632,7 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
               (drop-thing! thing person))
             (get-things person))
   (announce!
-   '("An earth-shattering, soul-piercing scream is heard..."))
+   人物挂掉的旁白)
   (set-health! person 0)
   (move! person (get-heaven) person))
 
@@ -561,8 +699,6 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 ;;; Students
 
 (define-type student (autonomous-agent?) ())
-
-
 ;;; House masters
 
 (define-sdf-property house-master:irritability
@@ -578,10 +714,9 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
         (if (pair? students)
             (begin
               (say! master
-                    '("What are you doing still up?"
-                      "Everyone back to their rooms!"))
+                    房管的训诫台词)
               (for-each (lambda (student)
-                          (narrate! (list student "goes home to"
+                          (narrate! (list student 回家str
                                           (get-origin student))
                                     student)
                           (move! student
@@ -589,10 +724,10 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
                                  student))
                         students))
             (say! master
-                  '("Grrr... When I catch those students...")))
+                  房管的自言自语))
         (if (pair? students)
             (say! master
-                  '("I'll let you off this once..."))))))
+                  房管的认怂台词)))))
 
 (define-clock-handler house-master? irritate-students!)
 
@@ -608,10 +743,10 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
   (if (flip-coin (get-hunger troll))
       (let ((people (people-here troll)))
         (if (null? people)
-            (narrate! (list (possessive troll) "belly rumbles")
+            (narrate! (list (possessive troll) 巨魔肚子咕噜声)
                       troll)
             (let ((victim (random-choice people)))
-              (narrate! (list troll "takes a bite out of" victim)
+              (narrate! (list troll 咬了str victim 一口str)
                         troll)
               (suffer! (random-number 3) victim))))))
 
@@ -625,42 +760,39 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 
 (define-type avatar (person?) (avatar:screen))
 
-
 (define-generic-procedure-handler send-message!
   (match-args message? avatar?)
   (lambda (message avatar)
     (send-message! message (get-screen avatar))))
 
-(define-generic-procedure-handler enter-place!
-  (match-args avatar?)
-  (lambda (super avatar)
-    (super avatar)
-    (look-around avatar)
-    (tick! (get-clock))))
+(广义过程扩展 enter-place! super ((avatar? avatar))
+	       (super avatar)
+	       (look-around avatar)
+	       (tick! (get-clock))
+	       )
 
 (define (look-around avatar)
-  (tell! (list "You are in" (get-location avatar))
+  (tell! (list 你处在str (get-location avatar))
          avatar)
   (let ((my-things (get-things avatar)))
     (if (pair? my-things)
-        (tell! (cons "Your bag contains:" my-things)
+        (tell! (cons 你的包里有str my-things)
                avatar)))
   (let ((things
          (append (things-here avatar)
                  (people-here avatar))))
     (if (pair? things)
-        (tell! (cons "You see here:" things)
+        (tell! (cons 你在这能看到str things)
                avatar)))
   (let ((vistas (vistas-here avatar)))
     (if (pair? vistas)
-        (tell! (cons "You can see:" vistas)
+        (tell! (cons 你见到了str vistas)
                avatar)))
   (tell! (let ((exits (exits-here avatar)))
            (if (pair? exits)
-               (cons "You can exit:"
+               (cons 你可以从这些地方离开str
                      (map get-direction exits))
-               '("There are no exits..."
-                 "you are dead and gone to heaven!")))
+               无法离开提示))
          avatar))
 
 ;;; Motion
@@ -693,7 +825,7 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 (define-generic-procedure-handler generic-move!
   (match-args thing? container? container? person?) ;将移动用于不可移动物体时  2024年2月19日21:39:24
   (lambda (thing from to actor)
-    (tell! (list thing "is not movable")
+    (tell! (list thing 不可移动提示)
            actor)))
 
 ;; coderef: generic-move:steal
@@ -703,29 +835,30 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
     (let ((former-holder (get-holder from))
           (new-holder (get-holder to)))
       (cond ((eqv? from to)
-             (tell! (list new-holder "is already carrying"
+             (tell! (list new-holder 正持有提示
                           mobile-thing)
                     actor))
             ((eqv? actor former-holder)
              (narrate! (list actor
-                             "gives" mobile-thing
-                             "to" new-holder)
+                             提示-把str mobile-thing
+                             提示-给了str new-holder)
                        actor))
             ((eqv? actor new-holder)
              (narrate! (list actor
-                             "takes" mobile-thing
-                             "from" former-holder)
+			     提示-从str former-holder
+                             提示-拿走了str mobile-thing
+                             )
                        actor))
             (else
              (narrate! (list actor
-                             "takes" mobile-thing
-                             "from" former-holder
-                             "and gives it to" new-holder)
+			     提示-从str former-holder
+                             提示-拿走了str mobile-thing
+                             提示-并str 提示-给了str new-holder)
                        actor)))
       (if (not (eqv? actor former-holder))
-          (say! former-holder (list "Yaaaah! I am upset!")))
+          (say! former-holder (list 提示-我很失望str)))
       (if (not (eqv? actor new-holder))
-          (say! new-holder (list "Whoa! Where'd you get this?")))
+          (say! new-holder (list 提示-哇喔str 提示-你从哪搞到的?str)))
       (if (not (eqv? from to))
           (move-internal! mobile-thing from to)))))
 
@@ -741,15 +874,15 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
     (let ((new-holder (get-holder to)))
       (cond ((eqv? actor new-holder)
              (narrate! (list actor
-                             "picks up" mobile-thing)
+                             提示-捡起了str mobile-thing)
                        actor))
             (else
              (narrate! (list actor
-                             "picks up" mobile-thing
-                             "and gives it to" new-holder)
+                             提示-捡起了str mobile-thing
+                             提示-并str 提示-给了str new-holder)
                        actor)))
       (if (not (eqv? actor new-holder))
-          (say! new-holder (list "Whoa! Thanks, dude!")))
+          (say! new-holder (list 提示-哇哦str 提示-谢了str 提示-伙计!str)))
       (move-internal! mobile-thing from to))))
 
 ;; coderef: generic-move:drop
@@ -759,24 +892,24 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
     (let ((former-holder (get-holder from)))
       (cond ((eqv? actor former-holder)
              (narrate! (list actor
-                             "drops" mobile-thing)
+                             提示-扔掉了str mobile-thing)
                        actor))
             (else
              (narrate! (list actor
-                             "takes" mobile-thing
-                             "from" former-holder
-                             "and drops it")
+                             提示-从str former-holder
+                             提示-拿走了str mobile-thing
+                             提示-并str 提示-扔掉了str)
                        actor)))
       (if (not (eqv? actor former-holder))
           (say! former-holder
-                (list "What did you do that for?")))
+                (list 提示-你干嘛str! )))
       (move-internal! mobile-thing from to))))
 
 (define-generic-procedure-handler generic-move!
   (match-args mobile-thing? place? place? person?)
   (lambda (mobile-thing from to actor)
     (cond ((eqv? from to)
-           (tell! (list mobile-thing "is already in" from)
+           (tell! (list mobile-thing 提示-已经str 提示-在str from 提示-了str)
                   actor))
           (else
            (tell! (list "How do you propose to move"
@@ -793,18 +926,18 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
                  (eqv? to (get-heaven)))
              (move-internal! person from to))
             ((not exit)
-             (tell! (list "There is no exit from" from
-                          "to" to)
+             (tell! (list 提示-没有str 提示-从str from
+                          提示-到str to 提示-的str 提示-出口str)
                     actor))
             ((eqv? person actor)
-             (narrate! (list person "leaves via the"
-                             (get-direction exit) "exit")
+             (narrate! (list person 提示-从str
+                             (get-direction exit) 离开str)
                        from)
              (move-internal! person from to))
             (else
-             (tell! (list "You can't force"
+             (tell! (list 提示-你str 提示-无法str 提示-强迫str
                           person
-                          "to move!")
+                          提示-移动str)
                     actor))))))
 
 (define (find-exit from to)
@@ -860,7 +993,7 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
                                  (get-location my-avatar))))
     (if exit
         (take-exit! exit my-avatar)
-        (narrate! (list "No exit in" direction "direction")
+        (narrate! (list 提示-没有str direction 提示-的str 提示-出口str)
                   my-avatar)))
   (done))
 
@@ -885,8 +1018,8 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
         (tell! (let ((referent (local-possessive person))
                      (things (get-things person)))
                  (if (pair? things)
-                     (cons* referent "bag contains" things)
-                     (list referent "bag is empty")))
+                     (cons* referent 提示-包str  things)
+                     (list referent 提示-包str 提示-是str 提示-空str 提示-的str)))
                my-avatar)))
   (done))
 
@@ -919,7 +1052,7 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
   (let ((person
          (find-object-by-name name (people-here my-avatar))))
     (if (not person)
-        (tell! (list "There is no one called" name "here")
+        (tell! (list 这str 提示-没有str 叫str name 提示-的str)
                my-avatar))
     person))
 
@@ -929,8 +1062,8 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
           name
           (person-or-place-things person-or-place))))
     (if (not thing)
-        (tell! (cons* "There is nothing called"
-                      name
+        (tell! (cons* 这str 提示-没有str 叫str
+                      name 提示-的str
                       (person-or-place-name person-or-place))
                my-avatar))
     thing))
@@ -942,12 +1075,12 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 
 (define (person-or-place-name person-or-place)
   (if (place? person-or-place)
-      '("here")
-      (list "in" (local-possessive person-or-place) "bag")))
+      (list 这str)
+      (list 提示-在str (local-possessive person-or-place) 提示-包str 提示-里str)))
 
 (define (local-possessive person)	;返回人名  2024年1月28日18:02:59
   (if (eqv? person my-avatar)
-      "Your"
+      提示-你str
       (possessive person)))
 
 
@@ -1115,7 +1248,7 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 		       'location place
 		       'screen screen))
 
-(define (can-go-both-ways from direction reverse-direction to) ;就是这个有些问题,得分开测试下 2024年1月9日09:40:20
+(define (can-go-both-ways from direction reverse-direction to) 
   (create-exit from direction to)
   (create-exit to reverse-direction from))
 
@@ -1139,16 +1272,7 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;;
 (定义匹配度优先广义过程 更新! 2 (constant-generic-procedure-handler #f))
-(定义匹配度优先广义过程 渲染! 2 (constant-generic-procedure-handler #f))
-
-(define (go-扩展渲染 direction)
-  (go direction)
-  (0层渲染包更新!)
-  )
-
-;; (define (go-down? 按键值)
-;;   ())
-
+;; (define 游戏累积时间间隔 0) 因为使用了固定的时间间隔,所以完全不需要获取累计时间间隔,这样看来直接tiktok就可以了 2024年11月2日21:21:12
 
 (define 游戏状态 0)
 (define 之前空间层级 0)
@@ -1157,7 +1281,7 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 (define 下扩层数 1)
 (define 上扩层数 0)
 (define 前一游戏状态 0)
-(define 前一需要渲染的实体 'nothing)
+;; (define 前一需要渲染的实体 'nothing)   ;; (set! 需要渲染的实体 前一需要渲染的实体) ;会变成引用同一个内存,前一个和现在一模一样
 
 (define (负数偏移mod a b 下偏移量)
   (-  (mod (+ a 下偏移量) b) 下偏移量))
@@ -1175,89 +1299,153 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 
 (define (0层渲染包更新!)
   (clear! 需要渲染的实体)
-  (place渲染包更新! (get-location my-avatar) 游戏字体 需要渲染的实体 (get-x坐标 当前place坐标) (get-y坐标 当前place坐标) 红色 (game-render-get sdf-adven))
+  (place渲染包更新! (get-location my-avatar) 游戏字体 需要渲染的实体 (get-x坐标 当前place坐标) (get-y坐标 当前place坐标) 红色)
   (for-each (lambda (exit)
-	      (exit渲染包更新! exit 游戏字体 需要渲染的实体 当前place坐标 绿色 (game-render-get sdf-adven)))
+	      (exit渲染包更新! exit 游戏字体 需要渲染的实体 当前place坐标 绿色))
 	    (get-exits (get-location my-avatar))))
 
 (define (-1层渲染包更新!)
   ;; 因为要输入按键信息,更新玩家的位置,要能够取出玩家的渲染数据 2024年10月9日11:25:44
   
   (clear! 需要渲染的实体)
-  (测试输出 (map get-name (获取已装备物品 my-avatar)))
-  (obj-str矩形渲染包更新! (get-location my-avatar) 游戏字体 需要渲染的实体 (中点 (- 窗口宽 room-w)) (中点 (- 窗口高 room-h)) room-w room-h 蓝色 (game-render-get sdf-adven) make-可sdl渲染rect-空间)
-  
-  (obj-str矩形ls随机位置渲染包更新! (things-here my-avatar) 游戏字体 需要渲染的实体 (- 窗口宽 (中点 (- 窗口宽 room-w)) thing-w) (- 窗口高 thing-h (中点 (- 窗口高 room-h))) thing-w thing-h 橙色 (game-render-get sdf-adven) random make-可sdl渲染rect-物品)
-  (obj-str矩形渲染包更新! my-avatar 游戏字体 需要渲染的实体 (中点 (- 窗口宽 people-w)) (中点 (- 窗口高 people-h)) people-w people-h 红色 (game-render-get sdf-adven)  make-可sdl渲染rect-玩家)
-  (obj-str矩形ls随机位置渲染包更新! (people-here my-avatar) 游戏字体 需要渲染的实体 (- 窗口宽 (中点 (- 窗口宽 room-w)) people-w) (- 窗口高 people-h (中点 (- 窗口高 room-h))) people-w people-h 绿色 (game-render-get sdf-adven) random make-可sdl渲染rect-人物)
+  (obj-str矩形渲染包更新! (get-location my-avatar) 游戏字体 需要渲染的实体 (中点 (- 窗口宽 room-w)) (中点 (- 窗口高 room-h)) room-w room-h 蓝色  make-文本-矩形UI-空间)
+  (obj-str矩形ls随机位置渲染包更新! (things-here my-avatar) 游戏字体 需要渲染的实体 (- 窗口宽 (中点 (- 窗口宽 room-w)) thing-w) (- 窗口高 thing-h (中点 (- 窗口高 room-h))) thing-w thing-h 橙色  random make-文本-矩形关联实体UI-物品)
+  (obj-str矩形-关联实体渲染包更新! my-avatar 游戏字体 需要渲染的实体 (中点 (- 窗口宽 people-w)) (中点 (- 窗口高 people-h)) people-w people-h 红色   make-玩家UI)
+  (obj-str矩形ls随机位置渲染包更新! (people-here my-avatar) 游戏字体 需要渲染的实体 (- 窗口宽 (中点 (- 窗口宽 room-w)) people-w) (- 窗口高 people-h (中点 (- 窗口高 room-h))) people-w people-h 绿色  random make-文本-矩形关联实体UI-人物)
   
   ;; (obj-str矩形ls随机位置渲染包更新! (vistas-here my-avatar) 游戏字体 需要渲染的实体 (- 窗口宽 vistas-w) (- 窗口高 vistas-h) vistas-w vistas-h 白色 (game-render-get sdf-adven) random)
   )
 
 (define (物品栏渲染包更新!)
-  (set! 前一需要渲染的实体 需要渲染的实体)
   (clear! 需要渲染的实体)
-  (测试输出 (map get-name (get-things my-avatar)))
+  (测试输出 (map get-name (get-things (get-bag my-avatar)))) ;切出物品栏再切回来之后,已经装备的东西依然出现在了物品栏 2024年10月27日22:11:35
   (实体-adder 需要渲染的实体 (make 被渲染的物品栏? 'name '被渲染的物品栏
 				   '实体 (物品ls->可渲染rect物品容器  (get-things my-avatar) 0 物品栏物品数 物品栏列数 物品栏左上角x 物品栏左上角y 物品栏物品宽 物品栏物品高 游戏字体)))
   (实体-adder 需要渲染的实体 ( ;; type-instantiator
 			      make
-			      可sdl渲染rect-按钮? 'name 丢弃str
+				 文本-矩形UI-按钮? '显示的文本 (创建字符串-ctcr 丢弃str)
 			      'rect (make-sdl-rect 物品栏左上角x (- 物品栏左上角y (* 2 物品栏物品高)) 物品栏物品宽 物品栏物品高)
 			      'color 蓝色
 			      'game-字体 游戏字体))
   (实体-adder 需要渲染的实体 ( ;; type-instantiator
 			      make
-				 可sdl渲染rect-按钮? 'name 使用str
+				 文本-矩形UI-按钮? '显示的文本 (创建字符串-ctcr 使用str)
 				 'rect (make-sdl-rect (+ 物品栏左上角x 物品栏物品高 10) (- 物品栏左上角y (* 2 物品栏物品高)) 物品栏物品宽 物品栏物品高)
 				 'color 蓝色
 				 'game-字体 游戏字体))
 
   (实体-adder 需要渲染的实体 (make 被渲染的物品栏? 'name '被渲染的装备栏
-				   '实体 (装备栏UI生成 '角色)))
-  ;; (for-each (lambda (name rect)
-  ;; 	      (实体-adder 需要渲染的实体
-  ;; 			  (make 可sdl渲染rect-按钮? 'name (symbol->string name)
-  ;; 				'rect rect 'color 蓝色 'game-字体 游戏字体)))
-  ;; 	    已知的装备部位 (构造装备栏渲染矩形ls))
+				   '实体 (装备栏UI生成 my-avatar)))
   )
+
+(define (物品ls->可渲染rect物品容器 物品ls 起始位置 总数 每行个数 initx inity w h 字体)
+  (let loop ((待转换ls (切片 物品ls 起始位置 (min (- (length 物品ls) 起始位置) 总数)))
+	     (x initx)
+	     (y inity)
+	     (当前行个数 0)
+	     (acc '()))
+    (cond ((null? 待转换ls) acc)
+	  ((<= 当前行个数 每行个数) (loop (cdr 待转换ls)
+					 (+ x w)
+					 y
+					 (+ 当前行个数 1)
+					 (cons (make 文本-矩形关联实体UI-物品?
+						 '显示的文本 (创建字符串-ctcr (symbol->string (get-name (car 待转换ls))))
+						 'entity (car 待转换ls)
+						 'rect (make-sdl-rect x y w h)
+						 'color 物品栏UI未选中颜色) acc)))
+	  (else
+	   (loop 待转换ls
+		 initx
+		 (+ y h)
+		 0
+		 acc)))))
+
+(define (装备栏UI生成 角色)
+  ;; 已经有装备的装备栏,注意名称的显示 2024年10月23日15:48:11
+  (let ((装备栏 (get-装备栏 角色)))
+    ;; 如果有太多装备物品的话,这个过程效率会很低
+    (map 
+     (lambda (name rect)
+       (let ((装备物品 (find-obj-by 装备栏 装备于? name)))
+	 ;; (测试输出 (get-name 装备物品))
+	 (if 装备物品
+	     (make 文本-矩形关联实体UI-装备部位? 'name name
+		   'entity 装备物品
+		   '显示的文本 (创建字符串-ctcr (symbol->string (get-name 装备物品)))
+		   'rect rect 'color 物品栏UI未选中颜色)
+	     (make 文本-矩形关联实体UI-装备部位? 'name name
+		   'entity '未装备
+		   '显示的文本 (创建字符串-ctcr (symbol->string name)) ;应该扩展一下原有的实现,把借鉴某个属性同supplier结合 2024年10月28日19:54:59
+		   'rect rect 'color 物品栏UI未选中颜色)
+	     )))
+     已知的装备部位 (构造装备栏渲染矩形ls))))
+
+(define (装备于? 部位 装备物品)
+  (eqv? (get-装备部位 装备物品) 部位))
 
 (define (-1层执行更新!)
   ;; 需要扩展更新玩家角色的坐标了...2024年9月28日22:16:19
   (cond
    ((sdl-event-key-down? SDLK-TAB)
-    (测试输出 'tab)
     (set! 前一游戏状态 游戏状态)
     (set! 游戏状态 '物品栏状态)
     (物品栏渲染包更新!)
-    (测试输出 (map (lambda (obj) (get-rect obj)) (filter 可sdl渲染rect? (get-实体 需要渲染的实体)))) ;可以筛选出来
+    ;; (测试输出 (map (lambda (obj) (get-rect obj)) (filter 文本-矩形UI? (get-实体 需要渲染的实体)))) ;可以筛选出来
     )
    (else
-    (let ((玩家ls (获取某类对象 需要渲染的实体 可sdl渲染rect-玩家?)))
+    (let ((玩家ls (获取某类对象 需要渲染的实体 玩家UI?)))
       (if (null? 玩家ls)
 	  (begin (测试输出 (map get-name (get-实体 需要渲染的实体)))
 		 )
-	  (玩家更新! (car 玩家ls) (获取某类对象 需要渲染的实体 可sdl渲染rect-物品?))))
+	  (玩家更新! (car 玩家ls) 需要渲染的实体)))
     (层级更新!))))
 
 (define (获取某类对象 含实体的实例 类型谓词)
   (filter 类型谓词 (get-实体 含实体的实例)))
 
+(define (从容器获取某类对象 获取容器的过程 含容器的实例 类型谓词)
+  (filter 类型谓词 (获取容器的过程 含容器的实例)))
+
 (define (玩家更新! obj env)
-  (cond ((sdl-event-key-down? SDLK-UP) (移动! obj (* -1 玩家速度模值 单位虚数)))
-	((sdl-event-key-down? SDLK-DOWN) (移动! obj (* 玩家速度模值 单位虚数)))
-	((sdl-event-key-down? SDLK-RIGHT) (移动! obj  玩家速度模值))
-	((sdl-event-key-down? SDLK-LEFT) (移动! obj (* -1 玩家速度模值)))
-	(else 
-	 (for-each
-	  (lambda (x)
-	    (cond ((一一碰撞? x obj)
-		   (测试输出 1)
-		   (take-thing (string->symbol (get-name x)))
-		   (实体-remover 需要渲染的实体 x))
-		  (else '())))
-	  env)
-	 )))
+  (let ((之前朝向 (get-朝向 obj)))
+    (cond ((sdl-event-key-down? SDLK-UP) (set-速度! obj (* -1 玩家速度模值 单位虚数)) (set-朝向! obj 0-i))
+	  ((sdl-event-key-down? SDLK-DOWN) (set-速度! obj (* 玩家速度模值 单位虚数)) (set-朝向! obj 0+i))
+	  ((sdl-event-key-down? SDLK-RIGHT) (set-速度! obj  玩家速度模值) (set-朝向! obj 1))
+	  ((sdl-event-key-down? SDLK-LEFT) (set-速度! obj (* -1 玩家速度模值)) (set-朝向! obj -1))
+	  ((and (sdl-mouse-button-left-click?)
+		(= 0 (get-当前普攻冷却时间 obj)))
+	   (let ((武器ui (创建角色手持武器UI obj)))
+	     (set-当前普攻冷却时间! obj (get-普攻冷却时间 obj)) ;点击且普攻已经冷却,因为需要一个挥刀的时间,
+	     (附件UI-adder obj 武器ui)
+	     (for-each
+	      (lambda (x)
+		(cond ((一一碰撞? x 武器ui)	;碰撞触发的更新变得复杂起来了,不重复检测,碰到可捡起物品,和水果刀碰到NPC
+		       (攻击! (get-entity obj) (get-entity 武器ui) (get-entity x)))
+		      (else '())))
+	      (获取某类对象 env 文本-矩形关联实体UI-人物?))))
+	  (else
+	   (let ((武器UIls (从容器获取某类对象 get-附件UI obj 角色武器UI?)))
+	     (when (not (null? 武器UIls))
+	       (for-each (lambda (武器ui)
+			   (if (<= (get-当前普攻冷却时间 obj) 0)
+			       (附件UI-remover obj 武器ui)
+			       (武器UI旋转! 武器ui (/ (get-朝向 obj) 之前朝向)
+					    (+ (get-x obj) (中点 (- (get-w obj) (get-w 武器ui)))
+					       (* 单位虚数 (+ (get-y obj) (中点 (- (get-h obj) (get-h 武器ui))))))) ;应该用当前朝向/之前的朝向得到角度....
+			       )) 武器UIls)))
+	   )))
+  (when (> (get-当前普攻冷却时间 obj) 0)
+    (set-当前普攻冷却时间! obj (max 0 (- (get-当前普攻冷却时间 obj) △t))))
+  (移动! obj (get-速度 obj))
+  (set-速度! obj 0)
+  (for-each
+   (lambda (x)
+     (cond ((一一碰撞? x obj)	;碰撞触发的更新变得复杂起来了,不重复检测,碰到可捡起物品,和水果刀碰到NPC
+	    (take-thing! (get-entity x) (get-entity obj))
+	    (实体-remover 需要渲染的实体 x))
+	   (else '())))
+   (获取某类对象 env 文本-矩形关联实体UI-物品?)))
 
 (define 界面更新过程 (lambda ()
 		       (测试输出 '其他状态)))
@@ -1294,7 +1482,7 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
    ((sdl-event-key-down? SDLK-RIGHT) (go-扩展渲染 'east))
    ((sdl-event-key-down? SDLK-LEFT) (go-扩展渲染 'west))
    ((sdl-event-key-down? SDLK-TAB) (set! 游戏状态 前一游戏状态)
-    ;; (set! 需要渲染的实体 前一需要渲染的实体) ;会变成引用同一个内存,前一个和现在一模一样
+  
     (-1层渲染包更新!)
     ;; (测试输出 (list 'tab2 游戏状态 (get-实体 需要渲染的实体)))
     )
@@ -1305,37 +1493,6 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 	 )
    ))
 
-(define (物品ls->可渲染rect物品容器 物品ls 起始位置 总数 每行个数 initx inity w h 字体)
-  (let loop ((待转换ls (切片 物品ls 起始位置 (min (- (length 物品ls) 起始位置) 总数)))
-	     (x initx)
-	     (y inity)
-	     (当前行个数 0)
-	     (acc '()))
-    (cond ((null? 待转换ls) acc)
-	  ((<= 当前行个数 每行个数) (loop (cdr 待转换ls)
-					 (+ x w)
-					 y
-					 (+ 当前行个数 1)
-					 (cons (make 可sdl渲染rect-物品?
-						 'name (symbol->string (get-name (car 待转换ls)))
-						 'rect (make-sdl-rect x y w h)
-						 'color 蓝色
-						 'game-字体 字体) acc)))
-	  (else
-	   (loop 待转换ls
-		 initx
-		 (+ y h)
-		 0
-		 acc)))))
-
-(define (装备栏UI生成 角色)
-  ;; 已经有装备的装备栏,注意名称的显示 2024年10月23日15:48:11
-  (map 
-   (lambda (name rect)
-     (make 可sdl渲染rect-装备部位? 'name (symbol->string name)
-	   'rect rect 'color 蓝色 'game-字体 游戏字体))
-   已知的装备部位 (构造装备栏渲染矩形ls)))
-
 (define (矩形被选中? 鼠标指针c rectobj)
   ;; (测试输出 (sdl-event-mouse-button-button))
   (and (一一碰撞? 鼠标指针c rectobj)
@@ -1343,6 +1500,12 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 
 (define (消息界面打开的更新!)
   (cond ((sdl-event-key-down? SDLK-M) (set! 游戏状态 之前空间层级))
+	((equal? (sdl-event-mouse-wheel-y) 1) ;上滑
+	 (set-消息板最后一行在log的位置! 主要消息板 (max (- (get-消息板最后一行在log的位置 主要消息板) (get-消息板每页字符串数 主要消息板)) 0))
+	 (消息板字符串更新! 主要消息板))
+	((equal? (sdl-event-mouse-wheel-y) -1) ;向下滑
+	 (set-消息板最后一行在log的位置! 主要消息板 (min (+ (get-消息板最后一行在log的位置 主要消息板) (get-消息板每页字符串数 主要消息板)) (length (get-log 主要消息板))))
+	 (消息板字符串更新! 主要消息板))
 	(else 'nothing)))
 
 (define (状态更新0!)
@@ -1366,12 +1529,7 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; 扩展后的实体
 
-(define-sdf-property 容器:实体
-  (实体 adder remover)
-  'predicate (is-list-of object?)
-  'default-value '())
 
-(define-type 容器 (object?) (容器:实体))
 
 (define-type 装备栏 (bag?) ())
 
@@ -1391,6 +1549,8 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
     (super person)
     (set-holder! (get-装备栏 person) person)))
 
+;; (define-type )
+
 ;; (广义过程扩展 get-装备栏 ((avatar带装备栏? avatar带装备栏))
 ;; 	      (get-things (get-装备栏 avatar带装备栏))
 ;; 	      )
@@ -1400,15 +1560,27 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 ;; 		       'location place
 ;; 		       'screen screen))
 
+
+;;; 方案1,根据功能不同,定义各种子类型,扩展各种方法:不同的鼓槌打鼓
+;;; 方案2,给功能性物品增加一个属性,保存λ的列表
+(define-sdf-property gobj:功能容器
+  功能列表
+  'predicate (is-list-of procedure?)			;暂时设置为所有物品,如有必要改成可移动非人物品 2024年10月14日20:56:00
+  'default-value '()
+  )
+
+(define-type 可使用物品 (thing?) (gobj:功能容器))
+
 ;;; 方案1:分别实现不同部位的装备槽,方便避免戴两个同样位置装备的情况,同时可以根据装备位置不同发挥不同作用,
 ;;; 三刀流问题,外星人/虫族问题,
 
-(define-sdf-property gobj:装备物品
-  被装备的物品
-  'predicate (is-list-of thing?)			;暂时设置为所有物品,如有必要改成可移动非人物品 2024年10月14日20:56:00
-  )
+;; (define-sdf-property gobj:装备物品
+;;   被装备的物品
+;;   'predicate (is-list-of thing?)			;暂时设置为所有物品,如有必要改成可移动非人物品 2024年10月14日20:56:00
+;;   'default-value '()
+;;   )
 
-(define-type 装备部位 (container?) (gobj:装备物品))
+;; (define-type 装备部位 (container?) (gobj:装备物品))
 ;; (define-type 装备槽-头部 (装备槽?) ())
 ;; (define-type 装备槽-面部 (装备槽?) ())
 
@@ -1422,14 +1594,14 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 (register-predicate! 装备部位? '装备部位)
 
 (define 已知的装备部位
-  '(头顶 面部 颈部 上身 左腿 右腿 左脚 右脚 左臂 右臂 左手 右手))
+  '(头顶 面部 颈部 上身 左腿 右腿 左脚 右脚 左臂 右臂 左手 右手 未装备))
 
 (define-sdf-property gobj:装备部位
   装备部位
   'predicate 装备部位?			;暂时设置为所有物品,如有必要改成可移动非人物品 2024年10月14日20:56:00
   )
 
-(define-type 可装备物品 (mobile-thing?) (gobj:装备部位))
+(define-type 可装备物品 (可使用物品? mobile-thing?) (gobj:装备部位))
 
 ;;; 使用 主体 物品 客体
 ;;; 使用 主体 物品
@@ -1448,8 +1620,8 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 (定义匹配度优先广义过程 对某物使用! 3 (constant-generic-procedure-handler #f))
 (定义匹配度优先广义过程 卸下! 3 (constant-generic-procedure-handler #f))
 
-;;; 方案1,根据功能不同,定义各种子类型,扩展各种方法:不同的鼓槌打鼓
-(define-type 回血药剂 (mobile-thing?) ())
+
+(define-type 回血药剂 (可使用物品? mobile-thing?) ())	;为了UI点了使用之后只对能直接使用的物品奏效 2024年10月27日20:34:08
 
 (广义过程扩展 使用! ((person? 主体) (回血药剂? 物品))
 	      (narrate! (list 主体 "使用了" 物品 "恢复了1点生命值") 主体)
@@ -1512,7 +1684,7 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 	      (set-装备部位! 装备 部位)
 	      (let ((装备栏部位
 		     (filter (lambda (obj)
-			       (eqv? 部位 (get-装备部位 obj)))
+			       (eqv? (get-装备部位 obj) 部位))
 			     (获取已装备物品 主体))))
 		(for-each (lambda (obj)	;如果部位上已经有了装备,就移回背包 2024年10月23日20:54:46
 			    (move! obj (get-bag 主体) 主体)) 装备栏部位)
@@ -1531,21 +1703,13 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 
 (广义过程扩展 卸下! ((avatar带装备栏? 主体) (可装备物品? 装备) (装备部位? 部位))
 	      (when (eqv? 部位 (get-装备部位 装备))
-		(set-装备部位! 装备 #f)
+		(set-装备部位! 装备 '未装备identifier)
 		(move! 装备 (get-bag 主体) 主体)))
 
 (define (卸下装备! name 部位)
     (let ((thing (find-thing name (get-装备栏 my-avatar))))
       (when thing
 	(卸下! my-avatar thing 部位))))
-
-;;; 方案2,给功能性物品增加一个属性,保存λ的列表
-(define-sdf-property gobj:功能容器
-  功能列表
-  'predicate (is-list-of procedure?)			;暂时设置为所有物品,如有必要改成可移动非人物品 2024年10月14日20:56:00
-  )
-
-(define-type 可使用物品 (thing?) (gobj:功能容器))
 
 (define (创建可使用物品 name location λls)
   (make-thing 'name name
@@ -1566,7 +1730,7 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 
 (define-sdf-property 武器物品:攻击距离
   攻击距离
-  'predicate (is-list-of procedure?)			;暂时设置为所有物品,如有必要改成可移动非人物品 2024年10月14日20:56:00
+  'predicate (is-list-of procedure?)		 	;暂时设置为所有物品,如有必要改成可移动非人物品 2024年10月14日20:56:00
   )
 
 (define-type 造成伤害的物品 (可装备物品?) (攻击物品:攻击力))
@@ -1575,26 +1739,42 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 (define-type 刀具 (武器?) ())
 
 
+(定义匹配度优先广义过程 攻击! 3 (lambda () '未定义的攻击))
+
+(广义过程扩展 攻击! ((person? 主体) (刀具? 伤人物品) (person? 客体))
+	      (let ((伤害值 (get-攻击力 伤人物品)))
+		(say! 客体(list 痛苦嚎叫str 伤害值 提示-的str 伤害值str 让我很难受str))
+		(set-health! 客体 (- (get-health 客体) 伤害值)))
+	      (if (< (get-health 客体) 1) ;这个判断是否狗带的表达式应该作为统一的后续处理 2024年10月29日20:18:06
+		  (die! 客体)))
+
+(define (get-手部装备 某人)
+  (or (find-obj-by (get-装备栏 某人) 装备于? '右手)
+      (find-obj-by (get-装备栏 某人) 装备于? '左手)))
+
+(define (用某物攻击某人 物品名称 对方名称)
+  (攻击! my-avatar (get-手部装备 my-avatar) (find-object-by-name 对方名称 (people-here my-avatar))))
+
 ;;; 渲染的部分
+(定义匹配度优先广义过程 渲染! 2 (constant-generic-procedure-handler #f))
+
+(define (go-扩展渲染 direction)
+  (go direction)
+  (0层渲染包更新!)
+  )
+
+(define 蓝色 (make-sdl-color 0 0 255 0))
+(define 靛色 (make-sdl-color 0 255 255 0))
 (define 红色 (make-sdl-color 255 0 0 0))
 (define 绿色 (make-sdl-color 0 255 0 0))
 (define 黄色 (make-sdl-color 255 255 0 0))
 (define 橙色 (make-sdl-color 255 128 0 0))
 (define 青色 (make-sdl-color 128 255 0 0))
-(define 白色 (make-sdl-color 255 255 255 0))
-(define 蓝色 (make-sdl-color 0 0 255 0))
-(define 靛色 (make-sdl-color 0 255 255 0))
 
-;;;按功能增加一层,方便修改和替换
 (define 物品栏UI选中颜色 黄色)
 (define 物品栏UI未选中颜色 蓝色)
 
-(define-sdf-property gobj:color
-  color
-  'predicate sdl-color?
-  'default-value 白色 ;这里引用了共享的部分 2024年9月20日16:40:39
-  )
-
+;;;按功能增加一层,方便修改和替换
 (define-sdf-property gobj:w
   w
   'predicate integer?
@@ -1607,33 +1787,74 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
   'default-value 0
   )
 
-(define-type 可sdl渲染rect (object?)
-  (gobj:rect gobj:color gobj:字体)
+(define-sdf-property gobj:object
+  entity
+  'predicate (lambda (x) (or (symbol? x) (object? x)))
+  'default-value '未关联实体
   )
+
+(define (实体未关联? 关联实体的对象)
+  (and (关联实体的UI? 关联实体的对象)
+       (symbol? (get-entity 关联实体的对象)))
+  )
+
+(define-type 关联实体的UI (UI类型?)	;这种将其它类型作为属性的方式,会导致要另外实现一套接口来穿透... 2024年10月24日22:52:57
+  (gobj:object))
+
+(define 无名关联实体的UI?
+  (conjoin 关联实体的UI? (complement object?)))
+
+(广义过程扩展 get-name ((无名关联实体的UI? obj))
+	      (get-name (get-entity obj)))
+
+(广义过程扩展 get-description ((关联实体的UI? obj))
+	      (get-description (get-entity obj)))
+
+;; (define-type 文本-矩形UI (文本-矩形UI?)
+;;   (;; object:name
+;;    )
+;;   )
+
+(define-type 文本-矩形关联实体UI (文本-矩形UI? 关联实体的UI?) ())
+
+;; (广义过程扩展 get-name ((文本-矩形关联实体UI? obj))
+;; 	      (get-name (get-entity obj)))
 
 (定义匹配度优先广义过程 get-r 1 (constant-generic-procedure-handler #f))
 (定义匹配度优先广义过程 get-g 1 (constant-generic-procedure-handler #f))
 (定义匹配度优先广义过程 get-b 1 (constant-generic-procedure-handler #f))
 (定义匹配度优先广义过程 get-a 1 (constant-generic-procedure-handler #f))
 
-(广义过程扩展 get-r ((可sdl渲染rect? obj))
+(广义过程扩展 get-r ((UI类型? obj))
 	      (sdl-color-r (get-color obj)))
 
-(广义过程扩展 get-g ((可sdl渲染rect? obj))
+(广义过程扩展 get-g ((UI类型? obj))
 	      (sdl-color-g (get-color obj)))
 
-(广义过程扩展 get-b ((可sdl渲染rect? obj))
+(广义过程扩展 get-b ((UI类型? obj))
 	      (sdl-color-b (get-color obj)))
 
-(广义过程扩展 get-a ((可sdl渲染rect? obj))
+(广义过程扩展 get-a ((UI类型? obj))
 	      (sdl-color-a (get-color obj)))
+
+(广义过程扩展 get-r ((sdl-color? obj))
+	      (sdl-color-r obj))
+
+(广义过程扩展 get-g ((sdl-color? obj))
+	      (sdl-color-g  obj))
+
+(广义过程扩展 get-b ((sdl-color? obj))
+	      (sdl-color-b  obj))
+
+(广义过程扩展 get-a ((sdl-color? obj))
+	      (sdl-color-a  obj))
 
 (定义匹配度优先广义过程 get-x 1 (constant-generic-procedure-handler #f))
 (定义匹配度优先广义过程 get-y 1 (constant-generic-procedure-handler #f))
 (定义匹配度优先广义过程 get-w 1 (constant-generic-procedure-handler #f))
 (定义匹配度优先广义过程 get-h 1 (constant-generic-procedure-handler #f))
 
-(define 含rectobj? (disjoin 可sdl渲染rect? 消息板?))
+(define 含rectobj? 含rectUI?)
 
 (广义过程扩展 get-x ((含rectobj? obj))
 	      (sdl-rect-x (get-rect obj)))
@@ -1647,11 +1868,22 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 (广义过程扩展 get-h ((含rectobj? obj))
 	      (sdl-rect-h (get-rect obj)))
 
+(广义过程扩展 get-x ((sdl-rect? obj))
+	      (sdl-rect-x obj))
+
+(广义过程扩展 get-y ((sdl-rect? obj))
+	      (sdl-rect-y obj))
+
+(广义过程扩展 get-w ((sdl-rect? obj))
+	      (sdl-rect-w obj))
+
+(广义过程扩展 get-h ((sdl-rect? obj))
+	      (sdl-rect-h obj))
+
 (定义匹配度优先广义过程 set-x! 1 (constant-generic-procedure-handler #f))
 (定义匹配度优先广义过程 set-y! 1 (constant-generic-procedure-handler #f))
 (定义匹配度优先广义过程 set-w! 1 (constant-generic-procedure-handler #f))
 (定义匹配度优先广义过程 set-h! 1 (constant-generic-procedure-handler #f))
-
 
 (广义过程扩展 set-x! ((含rectobj? obj) (real? v))
 	      (sdl-rect-x-set! (get-rect obj) v))
@@ -1685,31 +1917,86 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 		     )
 	      )
 
+(define-type 文本-矩形UI-物品 (文本-矩形UI?) ())
+(define-type 文本-矩形UI-人物 (文本-矩形UI?) ())
+(define-type 文本-矩形UI-玩家 (文本-矩形UI?) ())
+(define-type 文本-矩形UI-空间 (文本-矩形UI?) ())
+(define-type 文本-矩形UI-按钮 (文本-矩形UI?) ())
 
-(define-type 可sdl渲染rect-物品 (可sdl渲染rect?) ())
-(define-type 可sdl渲染rect-人物 (可sdl渲染rect?) ())
-(define-type 可sdl渲染rect-玩家 (可sdl渲染rect?) ())
-(define-type 可sdl渲染rect-空间 (可sdl渲染rect?) ())
-(define-type 可sdl渲染rect-按钮 (可sdl渲染rect?) ())
+(define-type 文本-矩形关联实体UI-物品 (文本-矩形关联实体UI?) ())
+(define-type 文本-矩形关联实体UI-人物 (文本-矩形关联实体UI?) ())
+(define-type 文本-矩形关联实体UI-玩家 (文本-矩形关联实体UI?) ())
+(define-type 文本-矩形关联实体UI-按钮 (文本-矩形关联实体UI?) ())
 
-(define-sdf-property 可sdl渲染rect-装备部位:当前装备
-  当前装备
-  'predicate string?
-  'default-to-property object:name
+(define-type 文本-矩形关联实体UI-装备部位 (文本-矩形关联实体UI-按钮? object?) ())
+
+(define 无名UI类型?
+  (conjoin UI类型? (complement object?)))
+
+(广义过程扩展 get-name ((无名UI类型? 含文本UI实例))
+	      (get-字符串 (get-显示的文本 含文本UI实例)))
+
+;;; 加入手持冷兵器的效果
+(define-sdf-property UI:跟随目标
+  跟随目标
+  'predicate 含rectUI?
+  'default-value '未跟随具体目标
   )
 
-(define-type 可sdl渲染rect-装备部位 (可sdl渲染rect-按钮?) (可sdl渲染rect-装备部位:当前装备))
+(define-type 关联实体的矩形UI (含rectUI? 关联实体的UI?) ())
 
-(define (创建可sdl渲染rect name rect color 字体)
-  (make-可sdl渲染rect 'name (symbol->string name) 'rect rect 'color color 'game-字体 字体))
+;; (define-sdf-property UI:跟随目标
+;;   跟随目标
+;;   'predicate 含rectUI?
+;;   'default-value '未跟随具体目标
+;;   )
+
+(define-sdf-property UI:基础矩形	;用于方便实现
+  基础矩形				
+  'predicate 含rectUI?
+  'default-value '无基础矩形
+  )
+
+;;; 直接引用一个被跟随的UI,或者将这个类型作为被跟随UI的容器中的实例
+;;; 前一方案直接将跟随UI加入渲染的实体,单独实现移动和渲染的方案,移除时也需要直接从渲染的实体移除,玩家go die等情况会有点麻烦
+;;; 后一方案需要修改被跟随UI的移动过程,
+(define-type 关联实体矩形附件UI (含rectUI? 关联实体的UI?) (UI:跟随目标 UI:基础矩形))
+
+(define-type 角色武器UI (关联实体矩形附件UI?) ())
+
+(define-sdf-property UI:附件容器
+  (附件UI adder remover)
+  'predicate (is-list-of UI类型?)
+  'default-value '())
+
+(define-type 带附件UI (UI类型?) (UI:附件容器))
+
+(property-modifier-extend UI:附件容器 带附件UI? UI类型? 附件UI-adder adder-modifier)
+(property-modifier-extend UI:附件容器 带附件UI? UI类型? 附件UI-remover remover-modifier)
+
+(define-type 文本-矩形关联实体带附件UI (文本-矩形关联实体UI? 带附件UI?) ())
+
+(define-sdf-property UI:朝向
+  朝向
+  'predicate complex?
+  'default-value 0-i)
+
+(define-type 玩家UI (文本-矩形关联实体带附件UI?) (UI:朝向))
+
+(define-sdf-property 容器:实体
+  (实体 adder remover)
+  'predicate (is-list-of object?)
+  'default-value '())
+
+(define-type 容器 (object?) (容器:实体))
 
 (define-type 被渲染的容器 (容器?) ())
 
 (define 需要渲染的实体 (make-被渲染的容器 'name '被渲染的容器
 					  '实体 '()))
 
-(property-modifier-extend 容器:实体 被渲染的容器? 可sdl渲染rect? 实体-adder adder-modifier)
-(property-modifier-extend 容器:实体 被渲染的容器? 可sdl渲染rect? 实体-remover remover-modifier)
+(property-modifier-extend 容器:实体 被渲染的容器? 文本-矩形UI? 实体-adder adder-modifier)
+(property-modifier-extend 容器:实体 被渲染的容器? 文本-矩形UI? 实体-remover remover-modifier)
 (property-modifier-extend 容器:实体 被渲染的容器? 容器? 实体-adder adder-modifier)
 (property-modifier-extend 容器:实体 被渲染的容器? 容器? 实体-remover remover-modifier)
 
@@ -1721,40 +2008,55 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 (广义过程扩展 clear! ((容器? obj))
 	      (set-实体! obj '()))
 
-(定义匹配度优先广义过程 render! 2 (constant-generic-procedure-handler #f))
+(定义链式广义过程 render! 1 (constant-generic-procedure-handler '没有定义渲染方式))
 
-(广义过程扩展 render! ((可sdl渲染rect? obj) (any-object? renderer))
-	      (sdl-set-render-draw-color! renderer (get-r obj) (get-g obj) (get-b obj) (get-a obj))
-	      (sdl-render-draw-rect renderer (get-rect obj))
+(广义过程扩展 render! super ((含文本UI? obj))
+	      (super obj)
 	      (let ((w (get-w obj))
 		    (h (get-h obj)))
-		(矩形区域渲染字符串 (get-game-字体 obj) renderer (get-name obj) (舍入取整 (+ (get-x obj) (中点 w))) (舍入取整 (get-y obj))
+		(矩形区域渲染字符串 (get-game-字体 (get-显示的文本 obj)) (current-renderer) (get-字符串 (get-显示的文本 obj))
+				    (舍入取整 (+ (get-x obj) (中点 w))) (舍入取整 (get-y obj))
 				    (get-r obj) (get-g obj) (get-b obj) (get-a obj)
 				    '居中 w h 0 8 'x 'x 1 1 0.0 NULL SDL_FLIP_NONE)))
 
-(广义过程扩展 render! ((消息板? obj) (any-object? renderer))
-	      (sdl-set-render-draw-color! renderer 0 0 255 60)
-	      (sdl-render-draw-rect renderer (get-rect obj))
+(广义过程扩展 render! super ((含rectUI? obj))
+	      (super obj)
+	      (sdl-set-render-draw-color! (current-renderer) (get-r obj) (get-g obj) (get-b obj) (get-a obj))
+	      (sdl-render-draw-rect (current-renderer) (get-rect obj))
+	      )
+
+(广义过程扩展 render! super ((文本-矩形UI? obj))
+	      (super obj)
+	      ;; (sdl-set-render-draw-color! (current-renderer) (get-r obj) (get-g obj) (get-b obj) (get-a obj))
+	      ;; (sdl-render-draw-rect renderer (get-rect obj))
+	      ;; (let ((w (get-w obj))
+	      ;; 	    (h (get-h obj)))
+	      ;; 	(矩形区域渲染字符串 (get-game-字体 (get-显示的文本 obj)) (current-renderer) (get-字符串 (get-显示的文本 obj))
+	      ;; 			    (舍入取整 (+ (get-x obj) (中点 w))) (舍入取整 (get-y obj))
+	      ;; 			    (get-r obj) (get-g obj) (get-b obj) (get-a obj)
+	      ;; 			    '居中 w h 0 8 'x 'x 1 1 0.0 NULL SDL_FLIP_NONE))
+	      )
+(define 消息面板边框颜色 蓝色)
+(define 消息面板文本颜色 白色)
+
+(定义匹配度优先广义过程 render-匹配! 1 (constant-generic-procedure-handler '没有定义的匹配优先渲染方式))
+
+(广义过程扩展 render! super ((消息板? obj))
+	      (sdl-set-render-draw-color! (current-renderer) (get-r 消息面板边框颜色) (get-g 消息面板边框颜色) (get-b 消息面板边框颜色) (get-a 消息面板边框颜色))
+	      (sdl-render-draw-rect (current-renderer) (get-rect obj))
 	      (let ((w (get-w obj))
 		    (h (get-h obj)))
-		(sdl-set-render-draw-color! renderer 255 255 255 125)
-		(矩形区域渲染字符串 (get-game-字体 (get-消息板str obj)) renderer (get-字符串 (get-消息板str obj)) (get-x obj) (get-y obj)
+		;; (sdl-set-render-draw-color! renderer 255 255 255 125)
+		(矩形区域渲染字符串 (get-game-字体 (get-显示的文本 obj)) (current-renderer) (get-字符串 (get-显示的文本 obj)) (get-x obj) (get-y obj)
 				    (get-r obj) (get-g obj) (get-b obj) (get-a obj)
-				    '左对齐 w h 0 8 'x 'x 1 1 0.0 NULL SDL_FLIP_NONE)))
+				    '左对齐 w h 0 8 'x 'x 1 1 0.0 NULL SDL_FLIP_NONE))
+	      )
 
-(广义过程扩展 render! ((被渲染的容器? obj) (any-object? renderer))
+(广义过程扩展 render! super ((被渲染的容器? obj))
+	      (super obj)
 	      (for-each (lambda (obj)
-			  (render! obj renderer))
+			  (render! obj))
 			(get-实体 obj)))
-
-(广义过程扩展 render! ((可sdl渲染rect-装备部位? obj) (any-object? renderer))
-	      (sdl-set-render-draw-color! renderer (get-r obj) (get-g obj) (get-b obj) (get-a obj))
-	      (sdl-render-draw-rect renderer (get-rect obj))
-	      (let ((w (get-w obj))
-		    (h (get-h obj)))
-		(矩形区域渲染字符串 (get-game-字体 obj) renderer (get-当前装备 obj) (舍入取整 (+ (get-x obj) (中点 w))) (舍入取整 (get-y obj))
-				    (get-r obj) (get-g obj) (get-b obj) (get-a obj)
-				    '居中 w h 0 8 'x 'x 1 1 0.0 NULL SDL_FLIP_NONE)))
 
 ;;; 因为要控制玩家移动,单纯的可渲染sdl类型不够用,而且这个东西在列表里面,不好取出,所以保存一个更新过程进入闭包
 (define-sdf-property gobj:更新过程
@@ -1763,9 +2065,8 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
   'default-value (lambda (x) x)
   )
 
-(define-type 自带更新过程的可渲染矩形? (可sdl渲染rect?)
+(define-type 自带更新过程的可渲染矩形? (文本-矩形UI?)
   (gobj:更新过程))
-
 
 (define (创建自带更新过程的可渲染矩形 name rect color 字体 更新foo)
   (make-自带更新过程的可渲染矩形 'name (symbol->string name) 'rect rect 'color color 'game-字体 字体 '更新过程 更新foo))
@@ -1794,11 +2095,11 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 (define (物品栏UIrect选中? obj)
   (eqv? obj 物品栏UI选中颜色))
 
-(广义过程扩展 物品栏状态下的渲染对象更新! ((可sdl渲染rect? obj) (any-object? env))
+(广义过程扩展 物品栏状态下的渲染对象更新! ((文本-矩形UI? obj) (any-object? env))
 	      (选中后变更颜色! obj)
 	      )
 
-(广义过程扩展 物品栏状态下的渲染对象更新! ((可sdl渲染rect-按钮? obj) (any-object? env))
+(广义过程扩展 物品栏状态下的渲染对象更新! ((文本-矩形UI-按钮? obj) (any-object? env))
 	      (选中后变更颜色! obj)
 	      ;; (测试输出 0.5)
 	      (cond
@@ -1824,64 +2125,68 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 (define (从物品栏丢弃! 物品栏容器)
   (for-each  (lambda (obj)
 	       (实体-remover 物品栏容器 obj)
-	       (drop-thing (string->symbol (get-name obj))))
+	       (drop-thing! (get-entity obj) my-avatar)) ;如果有必要,就换成当前操作的角色
 	     (filter (lambda (obj)
-		       (测试输出 (get-name obj))
+		       ;; (测试输出 (get-name obj))
 		       (eqv? (get-color obj) 物品栏UI选中颜色)) (get-实体 物品栏容器))))
 
 (define (从物品栏使用! 物品栏容器)
   (for-each (lambda (obj)
 	      (实体-remover 物品栏容器 obj)
-	      (use-thing (string->symbol (get-name obj))))
+	      (使用! my-avatar (get-entity obj)))
 	    (filter (lambda (obj)
-		      (eqv? (get-color obj) 物品栏UI选中颜色)) (get-实体 物品栏容器))))
+		      (and (可使用物品? (get-entity obj))
+			   (eqv? (get-color obj) 物品栏UI选中颜色))) (get-实体 物品栏容器))))
 
 (定义匹配度优先广义过程 find-obj-by 3 (constant-generic-procedure-handler #f))
 
-(广义过程扩展 find-obj-by ((容器? 容器) (procedure? 谓词) (any-object? 索引))
+(define list类对象? (disjoin 容器? container?))
+
+(广义过程扩展 get-实体 ((container? sdf容器))
+	      (get-things sdf容器))
+
+(广义过程扩展 find-obj-by ((list类对象? 容器) (procedure? 谓词) (any-object? 索引))
 	      (find (lambda (object)
 		      (谓词 索引 object))
 		    (get-实体 容器)))
-
 
 (define (颜色且装备部位一致? 装备部位颜色ls object)
   (and (equal? (car 装备部位颜色ls) (get-装备部位 object))
        (eqv? (cadr 装备部位颜色ls) (get-color object))))
 
-(define (装备部位未装备物品? 可渲染装备部位)
-  (equal? (get-name 可渲染装备部位) (get-当前装备 可渲染装备部位))  ;需要避免出现当前装备名字和槽子名字一样的情况 2024年10月20日17:55:21
-  )
+(define 装备部位未装备物品? 实体未关联?)
 
 (define (物品栏ui装备物品! 装备部位 装备 物品栏UI)
   ;; (let ((当前装备名称str (symbol->string (get-name 装备))))) ;不需要这个
-  (装备! (string->symbol (get-name 装备)) (string->symbol (get-name 装备部位)))
+  (设置! my-avatar (get-entity 装备) (get-name 装备部位))
   (测试输出 (map get-name (获取已装备物品 my-avatar)))
-  (set-当前装备! 装备部位 (get-name 装备)) ;可能还需要扩展字符 2024年10月20日18:50:58
+  (set-显示的文本! 装备部位 (get-显示的文本 装备))
+  (set-entity! 装备部位 (get-entity 装备)) ;可能还需要扩展字符 2024年10月20日18:50:58
   (set-color! 装备部位 物品栏UI未选中颜色)
   (实体-remover 物品栏UI 装备)		;移除物品栏部分的渲染 2024年10月21日11:42:58
   )
 
-(define (物品栏UI物品部分后续新增! 物品栏UI 装备名称)
+(define (物品栏UI物品部分后续新增! 物品栏UI 装备实体)
   (实体-adder (find-object-by-name '被渲染的物品栏 (get-实体 需要渲染的实体)) ;这里麻烦了,需要获取最后一个矩形,构造一个,名字也要搞对
 	      (let ((最后一个rect (get-物品栏UI最后一格 物品栏UI))
 		    )
-		
-		(make 可sdl渲染rect-物品?
-		  'name 装备名称
+		(make 文本-矩形关联实体UI-物品?
+		  'entity 装备实体
+		  '显示的文本 (创建字符串-ctcr (symbol->string (get-name 装备实体)))
 		  'rect (if (>= (/ (- (get-x 最后一个rect) 物品栏左上角x) 物品栏物品宽) (- 物品栏列数 1)) ;判断是否换行 2024年10月22日15:59:58
 			    (make-sdl-rect  物品栏左上角x (+ 物品栏物品宽 (get-x 最后一个rect)) 物品栏左上角y 物品栏物品宽 物品栏物品高)
 			    (make-sdl-rect (+ 物品栏物品宽 (get-x 最后一个rect)) (get-y 最后一个rect) 物品栏物品宽 物品栏物品高)
 			    )
-		  
 		  'color 物品栏UI未选中颜色
-		  'game-字体 游戏字体)))
+		  )))
   )
 
 (define (物品栏ui卸下装备物品! 装备部位 物品栏UI)
   ;; (let ((当前装备名称str (symbol->string (get-name 装备))))) ;不需要这个
-  (卸下装备! (string->symbol (get-当前装备 装备部位)) (string->symbol (get-name 装备部位)))
-  (物品栏UI物品部分后续新增! 物品栏UI (get-当前装备 装备部位))
-  (set-当前装备! 装备部位 (get-name 装备部位))
+  (卸下! my-avatar (get-entity 装备部位) (get-name 装备部位))
+  (物品栏UI物品部分后续新增! 物品栏UI (get-entity 装备部位))
+  (set-仅字符串! 装备部位 (get-name 装备部位))
+  (set-entity! 装备部位 '未装备)
   (set-color! 装备部位 物品栏UI未选中颜色)
   )
 
@@ -1895,26 +2200,28 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 	(else (get-坐标最东北的 (cdr 含xyls) 当前值))))
 
 (define (get-物品栏UI最后一格 物品栏UI)
-  (get-坐标最东北的 (get-实体 物品栏UI)   (make 可sdl渲染rect-物品?
+  (get-坐标最东北的 (get-实体 物品栏UI)   (make 文本-矩形UI-物品?
 					    'name 最东北默认str
 					    'rect (make-sdl-rect (- 物品栏左上角x 物品栏物品宽) 物品栏左上角y 物品栏物品宽 物品栏物品高)
 					    'color 物品栏UI未选中颜色
 					    'game-字体 游戏字体)))
+
 (define (是可装备物且颜色eqv? 颜色 obj)
-  (and (可装备物品? obj)		;这样不行,接受的obj是ui控件的
+  (and (可装备物品? (get-entity obj))	
        (颜色eqv? 颜色 obj)
        ))
 
-(广义过程扩展 物品栏状态下的渲染对象更新! ((可sdl渲染rect-装备部位? obj) (any-object? env))
+(广义过程扩展 物品栏状态下的渲染对象更新! ((文本-矩形关联实体UI-装备部位? obj) (any-object? env))
 	      (选中后变更颜色! obj)
 	      (cond
 	       ((eqv? 物品栏UI选中颜色 (get-color obj))
 		(let* ((物品栏UI (find-object-by-name '被渲染的物品栏 (get-实体 需要渲染的实体)))	;null?
-		       (装备 (find-obj-by  物品栏UI 是可装备物且颜色eqv? 物品栏UI选中颜色)))
-		 
+		       (装备 (find-obj-by 物品栏UI 是可装备物且颜色eqv? 物品栏UI选中颜色)))
+		  (测试输出 (get-name obj))
 		  (if (装备部位未装备物品? obj)
 		      (when 装备	;没装备,同时选中了物品,就装备上
-			(物品栏ui装备物品! obj 装备 物品栏UI))
+			(物品栏ui装备物品! obj 装备 物品栏UI)
+			)
 		      (cond (装备 (测试输出 (or 装备 (get-name 装备)))
 			     (物品栏ui卸下装备物品! obj 物品栏UI)
 			     (物品栏ui装备物品! obj 装备 物品栏UI)) ;装备了物品,同时选中了物品,就替换
@@ -1928,6 +2235,95 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
   (and (一一碰撞? 鼠标指针c rectobj)
        (sdl-mouse-button-right-click?)))
 
+(define (创建角色手持武器UI 角色UI)
+  (let* ((手部装备 (get-手部装备 (get-entity 角色UI)))
+	 )
+    (if 手部装备
+	(let* ((部位 (get-装备部位 手部装备))
+	       (朝向 (get-朝向 角色UI))
+	       (攻击距离 (get-攻击距离 手部装备))
+	       (旋转相对中点w (中点 (- (get-w 角色UI) *武器UI贴合面宽度-纵向*))) ;因为横向和纵向一样,所以能直接简化为旋转 2024年11月7日10:51:49
+	       (旋转相对中点h (中点 (- (get-h 角色UI) *武器UI贴合面宽度-横向*)))
+	       (基础矩形 (case 朝向	;相对于角色的偏移量xy和自身规格wh
+			   [(0+i 0-i)
+			    (make-sdl-rect 旋转相对中点w (case 朝向
+							   [(0-i) (- 攻击距离)]
+							   [(0+i) (get-h 角色UI)]
+							   )
+					   *武器UI贴合面宽度-纵向* 攻击距离)]
+			   [(-1 1)
+			    (make-sdl-rect  (case 朝向
+					      [(-1) (- 攻击距离)]
+					      [(1) (get-h 角色UI)]
+					      )
+					    旋转相对中点h  攻击距离 *武器UI贴合面宽度-横向*)]
+			   [else
+			    (make-sdl-rect 0 (* (imag-part 朝向) (+ 旋转相对中点h (中点 攻击距离))) *武器UI贴合面宽度-纵向* 攻击距离)]
+			   )) ;w和h会因为朝向,
+	       )
+	  (make-角色武器UI 'entity 手部装备
+			   '基础矩形 基础矩形
+			   'rect (make-sdl-rect (+ (get-x 角色UI)  (get-x 基础矩形)) (+ (get-y 角色UI)  (get-y 基础矩形)) (get-w 基础矩形) (get-h 基础矩形))
+			   '跟随目标 角色UI))
+	'某种武术))
+  )
+
+(define (武器UI旋转! 武器ui 角度c 中心点c)
+  (let ((旋转后c (旋转 (rectxy->c 武器ui) 中心点c 角度c))
+	(旋转后w (case 角度c
+		   [(0+i 0-i) (get-h 武器ui)]
+		   [else (get-w 武器ui)]))
+	(旋转后h (case 角度c
+		   [(0+i 0-i) (get-w 武器ui)]
+		   [else (get-h 武器ui)])))
+    (set-rect! 武器ui (make-sdl-rect (real-part 旋转后c) (imag-part 旋转后c) 旋转后w 旋转后h)) 
+    ))
+
+(define (中心点坐标获取 含rectUI)
+  (+ (get-x 含rectUI) (中点 (get-w 含rectUI))
+     (* 单位虚数 (+ (get-y 含rectUI) (中点 (get-h 含rectUI))))))
+
+(define (xy->c x y)
+  (+ x (* 单位虚数 y)))
+
+(define (rectxy->c rect)
+  (xy->c (get-x rect) (get-y rect)))
+
+(广义过程扩展 render! super ((带附件UI? obj))
+	      (super obj)
+	      (for-each (lambda (obj)
+			  (render! obj)) (get-附件UI obj))
+	      )
+
+;; (广义过程扩展 render! super ((关联实体矩形附件UI? obj))
+;; 	      (super obj)
+;; 	      (sdl-set-render-draw-color! renderer (get-r obj) (get-g obj) (get-b obj) (get-a obj))
+;; 	      (sdl-render-draw-rect renderer (get-rect obj))	;渲染时计算可能太蠢,不如在玩家UI移动后就直接更新伴随玩家的UI
+;; 	      )
+
+(广义过程扩展 get-速度 ((玩家UI? obj))
+	      (get-速度 (get-entity obj)))
+
+(广义过程扩展 set-速度! ((玩家UI? obj) (complex? v))
+	      (set-速度! (get-entity obj) v))
+
+(广义过程扩展 get-普攻冷却时间 ((玩家UI? obj))
+	      (get-普攻冷却时间 (get-entity obj)))
+
+(广义过程扩展 get-当前普攻冷却时间 ((玩家UI? obj))
+	      (get-当前普攻冷却时间 (get-entity obj)))
+
+(广义过程扩展 set-当前普攻冷却时间! ((玩家UI? obj) (complex? v))
+	      (set-当前普攻冷却时间! (get-entity obj) v))
+
+(广义过程扩展 移动! ((玩家UI? obj) (坐标对象? v)) ;应该也链式一下
+	      (set-x! obj (+ (get-x obj) (get-x坐标 v)))
+	      (set-y! obj (+ (get-y obj) (get-y坐标 v)))
+	      (for-each (lambda (obj)
+			  (移动! obj v))
+			(get-附件UI obj)
+			)
+	      )
 
 (define (中点 值)
   (/ 值 2))
@@ -1940,7 +2336,7 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 (define thing-w 100)
 (define thing-h 62)
 
-(define people-w 62)
+(define people-w 100)			;为了简化UI的处理 2024年11月5日21:06:34
 (define people-h 100)
 
 (define room-w (floor (* 0.9 窗口宽)))
@@ -1976,6 +2372,16 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 
 (define 当前place坐标 (创建坐标对象 (+ (中点 (- 窗口宽 place-w)) (* (中点 (- 窗口高 place-h)) 单位虚数))))
 
+;;; 渲染带武器的角色需要
+(define *角色武器UI偏移x* (/ people-w 4))
+(define *角色武器UI偏移y* (/ people-h 4))
+(define *武器UI贴合面宽度-纵向* *角色武器UI偏移x*)
+(define *武器UI贴合面宽度-横向* *角色武器UI偏移y*)
+(define *武器UI竖直轴偏移量* (中点 *武器UI贴合面宽度-纵向*))
+(define *武器UI水平轴偏移量* (中点 *武器UI贴合面宽度-横向*))
+(define *人物UI竖直对称轴* (中点 people-w))
+(define *人物UI水平对称轴* (中点 people-h))
+
 (define (direction->坐标 direction)
   (创建坐标对象 
    (case direction
@@ -1990,42 +2396,47 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
      [(skew) (+ (* 3 place-w) (* -3 单位虚数 place-w))]
      [else 0])))
 
-
-
-(define (obj-str矩形渲染包更新! obj 字体 需要渲染的实体 x y w h color renderer 可sdl渲染rect构造foo)
-  ;; 为了能通过单一过程构造多种不同标签的可sdl渲染rect,同时避免手写多个构造器 2024年10月9日20:25:00
+;;; UI交互后会影响背后逻辑实体的,应该全都关联实体 2024年10月27日10:15:12
+(define (obj-str矩形渲染包更新! obj 字体 需要渲染的实体 x y w h color  文本-矩形UI构造foo)
+  ;; 为了能通过单一过程构造多种不同标签的文本-矩形UI,同时避免手写多个构造器 2024年10月9日20:25:00
   (let ((name (get-name obj)))
-    (字体扩展字符! 字体 (list->set (string->list (symbol->string name))) renderer)
-    (实体-adder 需要渲染的实体 (可sdl渲染rect构造foo 'name (symbol->string name)
+    (实体-adder 需要渲染的实体 (文本-矩形UI构造foo '显示的文本 (创建字符串-ctcr (symbol->string name))
 						  'rect (make-sdl-rect x y w h)
-						  'color color 'game-字体 字体)))
+						  'color color)))
   )
 
-(define (obj-str矩形ls随机位置渲染包更新! objls 字体 需要渲染的实体 x y w h color renderer randomfoo 可sdl渲染rect构造foo)
+(define (obj-str矩形-关联实体渲染包更新! obj 字体 需要渲染的实体 x y w h color  文本-矩形关联实体UI构造foo)
+  ;; 为了能通过单一过程构造多种不同标签的文本-矩形UI,同时避免手写多个构造器 2024年10月9日20:25:00
+  (let ((name (get-name obj)))
+    (实体-adder 需要渲染的实体 (文本-矩形关联实体UI构造foo '显示的文本 (创建字符串-ctcr (symbol->string name))
+							   'entity obj
+							   'rect (make-sdl-rect x y w h)
+							   'color color)))
+  )
+
+(define (obj-str矩形ls随机位置渲染包更新! objls 字体 需要渲染的实体 x y w h color  randomfoo 文本-矩形UI构造foo)
   (for-each (lambda (obj)
-	      (obj-str矩形渲染包更新! obj 字体 需要渲染的实体 (randomfoo x) (randomfoo y) w h color renderer 可sdl渲染rect构造foo))
+	      (obj-str矩形-关联实体渲染包更新! obj 字体 需要渲染的实体 (randomfoo x) (randomfoo y) w h color  文本-矩形UI构造foo))
 	    objls)
   )
 
-(define (place渲染包更新! place 字体 需要渲染的实体 x y color renderer)
-  (obj-str矩形渲染包更新! place 字体 需要渲染的实体 x y place-w place-h color renderer make-可sdl渲染rect)
+(define (place渲染包更新! place 字体 需要渲染的实体 x y color )
+  (obj-str矩形渲染包更新! place 字体 需要渲染的实体 x y place-w place-h color  make-文本-矩形UI)
   )
 
-(define (exit渲染包更新! exit 字体 需要渲染的实体 原点place坐标 color renderer)
+(define (exit渲染包更新! exit 字体 需要渲染的实体 原点place坐标 color )
   (let ((坐标 (+ (get-坐标 原点place坐标) (get-坐标 (direction->坐标 (get-direction exit))))))
-    (place渲染包更新! (get-to exit) 字体 需要渲染的实体 (坐标x 坐标) (坐标y 坐标) color renderer))
+    (place渲染包更新! (get-to exit) 字体 需要渲染的实体 (坐标x 坐标) (坐标y 坐标) color))
   )
 
-(define (things渲染包更新! things 字体 需要渲染的实体 x y color renderer)
-  (obj-str矩形ls随机位置渲染包更新! things 字体 需要渲染的实体 (- 窗口宽 thing-w) (- 窗口高 thing-h) thing-w thing-h color renderer random make-可sdl渲染rect-物品))
+(define (things渲染包更新! things 字体 需要渲染的实体 x y color )
+  (obj-str矩形ls随机位置渲染包更新! things 字体 需要渲染的实体 (- 窗口宽 thing-w) (- 窗口高 thing-h) thing-w thing-h color  random make-文本-矩形关联实体UI-物品))
 
-(define (NPCS渲染包更新! people 字体 需要渲染的实体 x y color renderer)
-  (obj-str矩形ls随机位置渲染包更新! people 字体 需要渲染的实体 (- 窗口宽 people-w) (- 窗口高 people-h) people-w people-h color renderer random make-可sdl渲染rect-人物))
-
-
-
+(define (NPCS渲染包更新! people 字体 需要渲染的实体 x y color )
+  (obj-str矩形ls随机位置渲染包更新! people 字体 需要渲染的实体 (- 窗口宽 people-w) (- 窗口高 people-h) people-w people-h color  random make-文本-矩形关联实体UI-人物))
 
 (define 帧率 160)
+(define △t (/ 1000 帧率))
 (define NULL)
 
 (define 玩家速度模值 (/ 1000 帧率))
@@ -2033,25 +2444,24 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 (define 字体path "C:/Windows/Fonts/simfang.ttf")
 (define 颜色位深 32)
 
-(define wintitle "名侦探柯南之MIT巨魔")
+(define wintitle "MIT巨魔")
 (define sdf-adven (创建game SDL-INIT-EVERYTHING IMG_INIT_EVERYTHING (bitwise-ior MIX_INIT_FLAC MIX_INIT_MP3 MIX_INIT_OGG)
-			    (/ 1000 帧率) wintitle SDL-WINDOWPOS-UNDEFINED SDL-WINDOWPOS-UNDEFINED  窗口宽 窗口高))
+			    △t wintitle SDL-WINDOWPOS-UNDEFINED SDL-WINDOWPOS-UNDEFINED  窗口宽 窗口高))
 
 (define 游戏字体 (创建字体 字体path 24 480 颜色位深))
-(define 主要消息板 (make-消息板 'name '主要消息板
-				'消息板str (创建字符串 "" 游戏字体 (game-render-get sdf-adven))
+(set! *current-font* 游戏字体)
+
+(define 主要消息板 (make-消息板 
 				'rect (make-sdl-rect 20 20 390 (- 窗口高 20))
-				'renderer (game-render-get sdf-adven)))
-
-
+				))
 
 (define 丢弃str "丢弃")
 (define 使用str "使用")
 (define 最东北默认str "最东北的虚拟物品")
 ;; (map (lambda (strls)))
-(字体扩展字符! 游戏字体 (list->set (string->list
-				    (string-append 丢弃str 使用str 最东北默认str
-						   ))) (game-render-get sdf-adven))
+;; (字体扩展字符! 游戏字体 (list->set (string->list
+;; 				    (string-append 丢弃str 使用str 最东北默认str
+;; 						   ))) (game-render-get sdf-adven))
 (for-each (lambda (str)
 	    (字体扩展字符! 游戏字体 (list->set  (string->list str)) (game-render-get sdf-adven)))
 	  (append (map symbol->string 已知的装备部位)
@@ -2061,10 +2471,11 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
   (let ((renderer (game-render-get sdf-adven)))
     (case 游戏状态
       ;; [(主要状态) (render! 需要渲染的实体 renderer)]
-      [(消息界面打开) (render! 需要渲染的实体 renderer)
-       (render! 主要消息板 renderer)
+      [(消息界面打开) (render! 需要渲染的实体)
+       (render! 主要消息板)
        ]
-      [else (render! 需要渲染的实体 renderer)])))
+      [else 
+       (render! 需要渲染的实体)])))
 
 ;; ;;; 维护一个被更新的实体容器然后for-each clock-tick!,接受两个参数,对象和环境这样试试
 ;; ;;; 维护一个被渲染的实体容器然后for-each render!
@@ -2074,13 +2485,8 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 	   主要消息板
 	   )
 
-(start-adventure '影子哥)
+(start-adventure '留子)
 ;; (set! my-avatar (create-avatar带装备栏 '柯南 (random-choice all-places) 主要screen))
-
-(place渲染包更新! (get-location my-avatar) 游戏字体 需要渲染的实体 (get-x坐标 当前place坐标) (get-y坐标 当前place坐标) 红色 (game-render-get sdf-adven))
-(for-each (lambda (exit)
-	    (exit渲染包更新! exit 游戏字体 需要渲染的实体 当前place坐标 绿色 (game-render-get sdf-adven)))
-	  (get-exits (get-location my-avatar)))
 
 (define (core game)
   (let* ((脉冲间隔 0)
@@ -2090,11 +2496,13 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
 	 (renderer (game-render-get game))
 	 )
     (启动 计时器0)
+    (0层渲染包更新!)
     (lambda (m)
       (set! 脉冲间隔 (获取时间戳 计时器0)) ;大的离谱..... 2024年7月29日01:18:26
       ;; (set! 时间间隔 (获取时间戳 计时器0))
       (启动 计时器0) 	;重置计时器,下次获取时间坐标时就是时间间隔
       (set! 累积时间间隔 (+ 脉冲间隔 累积时间间隔))
+     
       (let loop ((lag 累积时间间隔))
 	(if (>= lag 时间间隔)
 	    (begin
@@ -2113,5 +2521,86 @@ along with SDF.  If not, see <https://www.gnu.org/licenses/>.
       ;; (当前渲染器)
       )))
 
-(游戏循环 sdf-adven
-	  (core sdf-adven))
+(define (run)
+  (游戏循环 sdf-adven
+	    (core sdf-adven)))
+
+;;; 测试用例
+;; (define-sdf-property 几何:w
+;;   w
+;;   'predicate real?
+;;   'default-value 0)
+
+;; (define-sdf-property 几何:h
+;;   h
+;;   'predicate real?
+;;   'default-value 0)
+
+;; (define-sdf-property 几何:边长
+;;   边长
+;;   'predicate real?
+;;   'default-value 0)
+
+;; (define-type 矩形 () (几何:w 几何:h))
+;; (define-type 菱形 () (几何:边长))
+;; (define-type 正方形 (矩形? 菱形?) ())
+
+;; (定义链式广义过程 求面积 1 (constant-generic-procedure-handler #f))
+
+;; (广义过程扩展 求面积 super ((矩形? 矩形))
+;; 	      (super 矩形)
+;; 	      (测试输出 '矩形)
+;; 	      (* (get-w 矩形) (get-h 矩形)))
+
+;; (广义过程扩展 求面积 super ((菱形? 菱形))
+;; 	      (super 菱形)
+;; 	      (测试输出 '菱形)
+;; 	      (* 1 1))
+
+;; (广义过程扩展 求面积 super ((正方形? 矩形))
+;; 	      (super 矩形)
+;; 	      (测试输出 '矩形)
+;; 	      (* (get-w 矩形) (get-h 矩形)))
+;; (run)
+
+;;; 放大灯和镜子
+;;; AI
+;;; cl的热更新
+;;; 网络
+(sdl-net-init)
+
+;; 定义服务器监听函数
+(define (start-server port)
+  ;; deepseek 极强,牛逼 2025年1月25日23:10:58
+  ;; 初始化 SDL_net
+  (when (not (zero? (sdl-net-init)))
+    (error 'SDLNet_Init (SDLNet_GetError)))
+
+  ;; 创建 IPaddress 结构体指针
+  (define ip-ptr (make-IPaddress))
+
+  ;; 解析主机地址（服务器模式，host 为 #f）
+  (if (zero? (SDLNet_ResolveHost ip-ptr #f port))
+      (begin
+        ;; 尝试打开 TCP 监听套接字
+        (define server-socket (SDLNet_TCP_Open ip-ptr))
+        (if (not (null-pointer? server-socket))
+            (begin
+              (printf "Server listening on port ~a.~%" port)
+              ;; 此处可添加接受客户端连接的逻辑
+              (SDLNet_TCP_Close server-socket))
+            (error 'SDLNet_TCP_Open (SDLNet_GetError))))
+      (error 'SDLNet_ResolveHost (SDLNet_GetError)))
+  
+(define address1 (make-sdl-net-ipaddress 0 0))
+(define ipc (make-sdl-net-ipaddress 0 443))
+(sdl-net-resolve-host! address1 "" 15366) ;返回0,成功了
+(sdl-net-resolve-host! ipc "www.baidu.com" 443)
+
+(sdl-net-resolve-ip address1)		;返回了本机名....
+(sdl-net-tcp-open ipc)			;这个作为客户端的是ok的
+
+(sdl-net-tcp-open address1)		;这个返回空指针 2025-1-25 22:32:45
+(sdl-net-get-error) ;; -> "Couldn't connect to remote host"
+
+;;; 空气炮:光标,旋转的素材,文本贴图的自动生成.
